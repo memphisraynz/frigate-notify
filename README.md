@@ -8,7 +8,6 @@ It mirrors the Home Assistant blueprint flow in `home-assistant/new-frigate-auto
 - applies camera, severity, object, zone, ordered-zone, time, cooldown, and custom filters
 - sends new, update, final, and GenAI notifications
 - uses direct Frigate API media URLs such as `/api/events/<event_id>/thumbnail.jpg`
-- posts notification payloads to your FCM REST API, default `https://ayra.eu.org/project/frigate/fcm`
 - provides an internal password-protected settings page
 
 ## Run

@@ -24,7 +24,7 @@
     "enabled": true,
     "delivery_method": "fcm",
     "tokens": [],
-    "fcm_api_url": "https://ayra.eu.org/project/frigate/fcm",
+    "fcm_api_url": "",
     "base_url": "http://frigate.local:5000",
     "title": "{{ label }} detected - {{ camera_name }}",
     "message": "{{ label }} was detected on the {{ camera_name }} camera.",

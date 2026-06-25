@@ -765,6 +765,7 @@ class AutomationWorker:
                 payload[f"url_{index}"] = action["uri"]
         result = {key: str(value) for key, value in payload.items() if value is not None}
         add_log("debug", "Notification payload built", review_id=context["review_id"], title=result.get("title"), label=context["label"], status=context["type"])
+        add_log("debug", "Notification payload built - Full", payload)
         return result
 
     def send_notification(self, config: dict[str, Any], payload: dict[str, str]) -> None:
