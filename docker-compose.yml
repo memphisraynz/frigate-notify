@@ -8,6 +8,6 @@ services:
     environment:
       APP_SECRET: "change-me"
       ADMIN_PASSWORD: "change-me"
-      FRIGATE_AUTOMATION_CONFIG: /data/config.json
+      FRIGATE_NOTIFY_CONFIG: /data/config.json
     volumes:
       - ./data:/data

@@ -3,39 +3,516 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Frigate Automation</title>
+  <title>Frigate Notify</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,300;8..144,400;8..144,500;8..144,600&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-950 text-slate-100">
-  <main class="mx-auto min-h-screen w-full max-w-5xl px-4 py-5 sm:px-6 lg:px-8">
-    <header class="flex flex-col gap-4 border-b border-slate-800 pb-5 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <h1 class="text-2xl font-semibold tracking-tight">Frigate Automation</h1>
-        <p id="status-line" class="mt-1 text-sm text-blue-200">
-          {{ status.connection_type|upper }}: {{ status.connected }} | Sent: {{ status.sent }} | Error: {{ status.last_error or "none" }}
-        </p>
-      </div>
-      <a href="{{ url_for('logout') }}" class="inline-flex w-full justify-center rounded-md border border-slate-700 px-4 py-2 text-sm text-slate-100 hover:bg-slate-900 sm:w-auto">Logout</a>
-    </header>
+  <style>
+    :root {
+      --neutral-primary-soft: #1D1B20;
+      --neutral-primary: #141218;
+      --neutral-primary-medium: #2B2930;
+      --neutral-primary-strong: #36343B;
+      --neutral-secondary-soft: #1D1B20;
+      --neutral-secondary: #141218;
+      --neutral-secondary-medium: #2B2930;
+      --neutral-secondary-strong: #36343B;
+      --neutral-tertiary-soft: #1D1B20;
+      --neutral-tertiary: #2B2930;
+      --neutral-tertiary-medium: #36343B;
+      --neutral-quaternary: #36343B;
+      --brand-softer: #2D1F5E;
+      --brand-soft: #4F378B;
+      --brand: #D0BCFF;
+      --brand-medium: #4F378B;
+      --brand-strong: #675496;
+      --success-soft: #002114;
+      --success: #66BB6A;
+      --danger-soft: #410002;
+      --danger: #F2B8B5;
+      --danger-medium: #8C1D18;
+      --danger-strong: #B3261E;
+      --disabled: #2B2930;
+      --heading: #E6E0E4;
+      --body: #CAC4D0;
+      --body-subtle: #938F99;
+      --fg-brand: #D0BCFF;
+      --fg-brand-strong: #EADDFF;
+      --fg-brand-subtle: #4F378B;
+      --fg-disabled: #79747E;
+      --fg-danger: #F2B8B5;
+      --fg-danger-strong: #FFB4AB;
+      --fg-success-strong: #66BB6A;
+      --border-default: #2B2930;
+      --border-default-medium: #49454F;
+      --border-default-strong: #79747E;
+      --border-brand: #D0BCFF;
+      --border-brand-subtle: #4F378B;
+      --border-danger: #B3261E;
+      --border-danger-subtle: #8C1D18;
+      --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.08), 0 2px 6px -1px rgb(0 0 0 / 0.06);
+      --shadow-md: 0 2px 6px -1px rgb(0 0 0 / 0.08), 0 6px 16px -2px rgb(0 0 0 / 0.06);
+      --shadow-lg: 0 8px 20px -4px rgb(0 0 0 / 0.08), 0 4px 12px -2px rgb(0 0 0 / 0.04);
+    }
+    * { box-sizing: border-box; }
+    body { font-family: 'Roboto Flex', sans-serif; background: var(--neutral-primary); color: var(--body); margin: 0; min-height: 100vh; }
+    .app-shell { display: flex; flex-direction: column; min-height: 100vh; }
 
-    <nav class="mt-5 grid grid-cols-3 rounded-lg border border-slate-800 bg-slate-900 p-1 text-sm">
-      <button type="button" class="tab-button rounded-md bg-blue-600 px-3 py-2 font-medium text-white" data-tab="config">Configuration</button>
-      <button type="button" class="tab-button rounded-md px-3 py-2 font-medium text-slate-300" data-tab="logs">Live Logs</button>
-      <button type="button" class="tab-button rounded-md px-3 py-2 font-medium text-slate-300" data-tab="test">Test Payload</button>
+    /* Top bar */
+    .topbar { height: 56px; background: var(--neutral-primary-soft); border-bottom: 1px solid var(--border-default); display: flex; align-items: center; padding: 0 24px; gap: 16px; position: sticky; top: 0; z-index: 50; }
+    .topbar-title { font-size: 18px; font-weight: 500; color: var(--heading); letter-spacing: 0.1px; }
+    .topbar-title span { color: var(--fg-brand); }
+    .topbar-status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--body-subtle); }
+    .status-dot { width: 7px; height: 7px; border-radius: 9999px; background: var(--success); display: inline-block; }
+    .status-dot.offline { background: var(--danger); }
+    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+    /* Pill tabs */
+    .top-tabs { display: flex; gap: 4px; background: var(--neutral-secondary-medium); border-radius: 9999px; padding: 4px; }
+    .top-tab { font-size: 13px; font-weight: 500; padding: 6px 18px; border-radius: 9999px; border: none; cursor: pointer; color: var(--body); background: transparent; transition: all 200ms; white-space: nowrap; letter-spacing: 0.1px; }
+    .top-tab:hover { background: var(--neutral-tertiary-medium); color: var(--heading); }
+    .top-tab.active { background: var(--brand-soft); color: var(--fg-brand-strong); box-shadow: var(--shadow-sm); }
+
+    /* Body layout */
+    .body-layout { display: flex; flex: 1; min-height: 0; }
+
+    /* Config sidebar */
+    .config-sidebar { width: 220px; min-width: 220px; background: var(--neutral-primary-soft); border-right: 1px solid var(--border-default); padding: 16px 12px; display: flex; flex-direction: column; gap: 2px; position: sticky; top: 56px; height: calc(100vh - 56px); overflow-y: auto; }
+    .sidebar-label { font-size: 11px; font-weight: 500; color: var(--body-subtle); text-transform: uppercase; letter-spacing: 0.8px; padding: 12px 10px 6px; }
+    .sidebar-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 9999px; font-size: 14px; font-weight: 500; color: var(--body); cursor: pointer; border: none; background: transparent; width: 100%; text-align: left; transition: all 200ms; }
+    .sidebar-item svg { width: 18px; height: 18px; color: var(--body-subtle); transition: color 200ms; flex-shrink: 0; }
+    .sidebar-item:hover { background: var(--neutral-secondary-medium); color: var(--heading); }
+    .sidebar-item:hover svg { color: var(--heading); }
+    .sidebar-item.active { background: var(--brand-soft); color: var(--fg-brand-strong); }
+    .sidebar-item.active svg { color: var(--fg-brand-strong); }
+
+    /* Main content */
+    .main-content { flex: 1; min-width: 0; padding: 32px; overflow-y: auto; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .config-section { display: none; }
+    .config-section.active { display: block; }
+
+    .section-header { margin-bottom: 28px; }
+    .section-title { font-size: 22px; font-weight: 500; color: var(--heading); margin: 0 0 6px 0; }
+    .section-desc { font-size: 14px; color: var(--body-subtle); margin: 0; line-height: 1.5; }
+
+    /* Form */
+    .field-group { background: var(--neutral-primary-soft); border: 1px solid var(--border-default); border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 20px; margin-bottom: 16px; box-shadow: var(--shadow-sm); }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 700px) { .field-row { grid-template-columns: 1fr; } }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field-label { font-size: 14px; font-weight: 500; color: var(--heading); display: block; }
+    .field-hint { font-size: 12px; color: var(--body-subtle); line-height: 1.5; margin-top: -2px; }
+    .control { background: var(--neutral-secondary-medium); border: 1px solid var(--border-default-medium); border-radius: 12px; padding: 10px 14px; font-size: 14px; color: var(--heading); font-family: 'Roboto Flex', sans-serif; outline: none; transition: all 200ms; width: 100%; }
+    .control:hover { border-color: var(--border-default-strong); }
+    .control:focus { border-color: var(--fg-brand); box-shadow: 0 0 0 2px var(--brand-medium); }
+    select.control { cursor: pointer; }
+    textarea.control { resize: vertical; min-height: 88px; line-height: 1.5; }
+    .control.font-mono { font-family: monospace; font-size: 12px; }
+
+    /* Chips */
+    .chip-list { display: flex; flex-wrap: wrap; gap: 6px; min-height: 28px; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--neutral-primary-strong); border: 1px solid var(--border-default-medium); border-radius: 9999px; padding: 4px 12px; font-size: 13px; color: var(--heading); }
+    .chip button { color: var(--body-subtle); background: none; border: none; cursor: pointer; font-size: 16px; line-height: 1; padding: 0; }
+    .chip button:hover { color: var(--fg-brand); }
+    .chip-row { display: flex; gap: 8px; }
+    .chip-row input { flex: 1; }
+    .chip-add-btn { padding: 10px 18px; border-radius: 9999px; border: 1px solid var(--border-default-medium); background: transparent; color: var(--body); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 200ms; white-space: nowrap; }
+    .chip-add-btn:hover { background: var(--neutral-secondary-medium); color: var(--heading); }
+
+    /* Severity */
+    .check-cards { display: flex; flex-wrap: wrap; gap: 8px; }
+    .check-card { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 9999px; border: 1px solid var(--border-default-medium); background: var(--neutral-secondary-medium); font-size: 14px; color: var(--body); cursor: pointer; transition: all 200ms; }
+    .check-card:hover { background: var(--neutral-tertiary-medium); color: var(--heading); }
+    .check-card input[type="checkbox"] { accent-color: var(--fg-brand); width: 15px; height: 15px; }
+    .check-card:has(input:checked) { border-color: var(--border-brand-subtle); background: var(--brand-softer); color: var(--fg-brand-strong); }
+
+    /* Token */
+    .token-list { display: flex; flex-direction: column; gap: 6px; }
+    .token-row { display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px; align-items: center; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border-default-medium); background: var(--neutral-secondary-medium); cursor: pointer; transition: all 200ms; }
+    .token-row:hover { background: var(--neutral-tertiary-medium); }
+    .token-row.selected { border-color: var(--border-brand-subtle); background: var(--brand-softer); box-shadow: 0 0 0 2px var(--brand-medium); }
+    .token-row-name { font-size: 14px; color: var(--heading); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .token-row-value { font-size: 11px; font-family: monospace; color: var(--body-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .token-add-grid { display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px; align-items: start; margin-top: 4px; }
+    .token-test-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+
+    /* KV */
+    .kv-list { display: flex; flex-direction: column; gap: 8px; }
+    .kv-row { display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px; align-items: start; }
+
+    /* Buttons */
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 24px; border-radius: 9999px; border: none; font-size: 14px; font-weight: 500; font-family: 'Roboto Flex', sans-serif; cursor: pointer; transition: all 200ms; letter-spacing: 0.1px; }
+    .btn-brand { background: var(--brand-soft); color: var(--fg-brand-strong); }
+    .btn-brand:hover { background: var(--brand-strong); }
+    .btn-secondary { background: var(--neutral-secondary-medium); border: 1px solid var(--border-default-medium); color: var(--body); }
+    .btn-secondary:hover { background: var(--neutral-tertiary-medium); color: var(--heading); }
+    .btn-ghost { background: transparent; border: 1px solid var(--border-default-medium); color: var(--body); }
+    .btn-ghost:hover { background: var(--neutral-secondary-medium); color: var(--heading); }
+    .btn-sm { padding: 6px 16px; font-size: 13px; }
+    .btn-icon { padding: 8px; border-radius: 9999px; }
+
+    /* Save bar */
+    .save-bar { padding: 20px 0 0; display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--border-default); margin-top: 4px; }
+
+    /* Log */
+    #log-tbody tr.log-row { border-bottom: 1px solid rgba(74,69,79,.3); }
+    #log-tbody tr.log-row:hover { background: rgba(43,41,48,.4); }
+    #log-tbody tr.log-detail-row { border-bottom: 1px solid rgba(74,69,79,.3); }
+
+    /* Badge */
+    .badge { display: inline-block; border-radius: 8px; padding: 2px 8px; font-size: 11px; font-weight: 500; border: 1px solid; text-transform: uppercase; letter-spacing: 0.4px; }
+    .badge-error { background: var(--danger-soft); border-color: var(--border-danger-subtle); color: var(--fg-danger); }
+    .badge-info  { background: var(--brand-softer); border-color: var(--border-brand-subtle); color: var(--fg-brand-strong); }
+    .badge-debug { background: var(--neutral-secondary-medium); border-color: var(--border-default-medium); color: var(--body-subtle); }
+
+    /* Logout */
+    .logout-btn { padding: 6px 16px; border-radius: 9999px; border: 1px solid var(--border-default-medium); background: transparent; color: var(--body); font-size: 13px; font-weight: 500; cursor: pointer; transition: all 200ms; text-decoration: none; display: inline-flex; align-items: center; }
+    .logout-btn:hover { background: var(--neutral-secondary-medium); color: var(--heading); }
+
+    /* Log toolbar */
+    .log-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border-default); }
+    .log-search-wrap { position: relative; flex: 1; min-width: 160px; }
+    .log-search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--body-subtle); pointer-events: none; }
+    .log-search { width: 100%; background: var(--neutral-secondary-medium); border: 1px solid var(--border-default-medium); border-radius: 9999px; padding: 7px 12px 7px 32px; font-size: 13px; color: var(--heading); font-family: 'Roboto Flex', sans-serif; outline: none; transition: all 200ms; }
+    .log-search:focus { border-color: var(--fg-brand); box-shadow: 0 0 0 2px var(--brand-medium); }
+    .log-select { background: var(--neutral-secondary-medium); border: 1px solid var(--border-default-medium); border-radius: 9999px; padding: 7px 12px; font-size: 13px; color: var(--body); font-family: 'Roboto Flex', sans-serif; outline: none; cursor: pointer; }
+    .log-select:focus { border-color: var(--fg-brand); }
+    .log-count { margin-left: auto; font-size: 12px; color: var(--body-subtle); }
+
+    /* Exclusive groups */
+    [data-connection-type], [data-delivery-method] { display: none; }
+
+    /* Mobile */
+    .sidebar-toggle { display: none; }
+    @media (max-width: 768px) {
+      .config-sidebar { display: none; width: 0; min-width: 0; border: none; }
+      .config-sidebar.open { display: flex; position: fixed; top: 56px; left: 0; z-index: 40; height: calc(100vh - 56px); width: 240px; }
+      .sidebar-toggle { display: flex; }
+    }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-default-medium); border-radius: 9999px; }
+
+    select.control, select.log-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23938F99' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px; }
+
+    .group-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.8px; color: var(--body-subtle); padding-bottom: 12px; border-bottom: 1px solid var(--border-default); margin-bottom: 4px; }
+    .fcm-status { font-size: 13px; color: var(--fg-brand); }
+
+    code { background: var(--neutral-secondary-medium); border-radius: 4px; padding: 1px 5px; font-size: 0.9em; font-family: monospace; color: var(--fg-brand); }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+
+  <header class="topbar">
+    <button class="sidebar-toggle btn-ghost btn btn-icon btn-sm" id="sidebar-toggle-btn" aria-label="Toggle menu" type="button">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <div class="topbar-title">Frigate <span>Notify</span></div>
+    <div class="topbar-status">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-line">{{ status.connection_type|upper }}: {{ status.connected }} | Sent: {{ status.sent }} | Error: {{ status.last_error or "none" }}</span>
+    </div>
+    <div class="topbar-right">
+      <nav class="top-tabs">
+        <button class="top-tab active tab-button" data-tab="config" type="button">Configuration</button>
+        <button class="top-tab tab-button" data-tab="logs" type="button">Live Logs</button>
+        <button class="top-tab tab-button" data-tab="test" type="button">Test Payload</button>
+      </nav>
+      <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+    </div>
+  </header>
+
+  <div class="body-layout">
+
+    <nav class="config-sidebar" id="config-sidebar">
+      <div class="sidebar-label">Settings</div>
+      <button class="sidebar-item active" data-section="connection" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1" fill="currentColor"/></svg>
+        Connection
+      </button>
+      <button class="sidebar-item" data-section="fcm" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        FCM
+      </button>
+      <button class="sidebar-item" data-section="notification" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg>
+        Notification
+      </button>
+      <button class="sidebar-item" data-section="filters" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        Filters
+      </button>
+      <button class="sidebar-item" data-section="timers" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Timers
+      </button>
+      <button class="sidebar-item" data-section="telegram" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        Telegram
+      </button>
     </nav>
 
-    <section id="config-tab" class="tab-panel mt-5">
-      {% include "partials/config_form.html" %}
-    </section>
+    <main class="main-content">
 
-    <section id="logs-tab" class="tab-panel mt-5 hidden">
-      {% include "partials/logs.html" %}
-    </section>
+      <!-- CONFIG TAB -->
+      <section id="config-tab" class="tab-panel active">
+        <form method="post">
 
-    <section id="test-tab" class="tab-panel mt-5 hidden">
-      {% include "partials/test_payload.html" %}
-    </section>
-  </main>
-  <script src="{{ url_for('static', filename='app.js') }}"></script>
+          <!-- Connection -->
+          <div class="config-section active" id="section-connection">
+            <div class="section-header">
+              <h2 class="section-title">Connection</h2>
+              <p class="section-desc">Configure how this server receives Frigate review events.</p>
+            </div>
+            <div class="field-group">
+              <div class="field-row">
+                <div class="field">
+                  <label class="field-label" for="enabled">Listener Enabled</label>
+                  <span class="field-hint">Turns the listener on or off without deleting configuration.</span>
+                  <select name="enabled" id="enabled" class="control">
+                    <option value="true" {{ "selected" if config.enabled }}>Yes</option>
+                    <option value="false" {{ "selected" if not config.enabled }}>No</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label class="field-label" for="connection-type">Connection Type</label>
+                  <span class="field-hint">How this server receives Frigate review events.</span>
+                  <select name="connection.type" id="connection-type" class="control">
+                    <option value="mqtt" {{ "selected" if config.connection.type == "mqtt" }}>MQTT</option>
+                    <option value="websocket" {{ "selected" if config.connection.type == "websocket" }}>WebSocket</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="field-group" data-connection-type="mqtt">
+              <div class="group-label">MQTT Settings</div>
+              <div class="field-row">
+                <div class="field"><label class="field-label" for="mqtt-host">Host</label><span class="field-hint">Broker hostname or IP.</span><input name="mqtt.host" id="mqtt-host" value="{{ config.mqtt.host }}" class="control"></div>
+                <div class="field"><label class="field-label" for="mqtt-port">Port</label><span class="field-hint">Broker TCP port, usually 1883.</span><input name="mqtt.port" id="mqtt-port" value="{{ config.mqtt.port }}" class="control"></div>
+              </div>
+              <div class="field-row">
+                <div class="field"><label class="field-label" for="mqtt-username">Username</label><span class="field-hint">Optional MQTT username.</span><input name="mqtt.username" id="mqtt-username" value="{{ config.mqtt.username }}" class="control"></div>
+                <div class="field"><label class="field-label" for="mqtt-password">Password</label><span class="field-hint">Optional MQTT password.</span><input name="mqtt.password" id="mqtt-password" type="password" value="{{ config.mqtt.password }}" class="control"></div>
+              </div>
+              <div class="field-row">
+                <div class="field"><label class="field-label" for="mqtt-topic">Topic</label><span class="field-hint">Frigate review topic (default: <code>frigate/reviews</code>).</span><input name="mqtt.topic" id="mqtt-topic" value="{{ config.mqtt.topic }}" class="control"></div>
+                <div class="field"><label class="field-label" for="mqtt-client-id">Client ID</label><span class="field-hint">MQTT client id prefix. Keep unique per server.</span><input name="mqtt.client_id" id="mqtt-client-id" value="{{ config.mqtt.client_id }}" class="control"></div>
+              </div>
+            </div>
+            <div class="field-group" data-connection-type="websocket">
+              <div class="group-label">WebSocket Settings</div>
+              <div class="field"><label class="field-label" for="ws-base-url">Frigate WebSocket URL</label><span class="field-hint">Base WebSocket URL, e.g. <code>ws://frigate.local:5000</code>.</span><input name="websocket.base_url" id="ws-base-url" value="{{ config.websocket.base_url }}" class="control"></div>
+              <div class="field-row">
+                <div class="field"><label class="field-label" for="ws-path">Path</label><span class="field-hint">Path appended to base URL, usually <code>/ws</code>.</span><input name="websocket.path" id="ws-path" value="{{ config.websocket.path }}" class="control"></div>
+                <div class="field"><label class="field-label" for="ws-ping-interval">Ping Interval (s)</label><span class="field-hint">How often to ping Frigate.</span><input name="websocket.ping_interval" id="ws-ping-interval" value="{{ config.websocket.ping_interval }}" class="control"></div>
+              </div>
+              <div class="field-row">
+                <div class="field"><label class="field-label" for="ws-ping-timeout">Ping Timeout (s)</label><span class="field-hint">Must be less than ping interval.</span><input name="websocket.ping_timeout" id="ws-ping-timeout" value="{{ config.websocket.ping_timeout }}" class="control"></div>
+                <div class="field"><label class="field-label" for="ws-reconnect-min">Min Reconnect (s)</label><span class="field-hint">Initial retry delay.</span><input name="websocket.reconnect_min_seconds" id="ws-reconnect-min" value="{{ config.websocket.reconnect_min_seconds }}" class="control"></div>
+              </div>
+              <div class="field-row">
+                <div class="field"><label class="field-label" for="ws-reconnect-max">Max Reconnect (s)</label><span class="field-hint">Reconnect delay cap.</span><input name="websocket.reconnect_max_seconds" id="ws-reconnect-max" value="{{ config.websocket.reconnect_max_seconds }}" class="control"></div>
+                <div class="field" style="align-self:start"><label class="field-label" for="ws-extra-headers">Extra Headers</label><span class="field-hint">One per line as <code>Header: value</code>.</span><textarea name="websocket.extra_headers" id="ws-extra-headers" class="control" style="min-height:72px">{{ config.websocket.extra_headers }}</textarea></div>
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="field"><label class="field-label" for="notifications-base-url">Frigate API Base URL</label><span class="field-hint">Direct Frigate URL used for thumbnails, snapshots, clips, and GIF previews. Used regardless of connection type.</span><input name="notifications.base_url" id="notifications-base-url" value="{{ config.notifications.base_url }}" class="control"></div>
+            </div>
+            <div class="save-bar"><button class="btn btn-brand" type="submit">Save and restart listener</button></div>
+          </div>
+
+          <!-- FCM -->
+          <div class="config-section" id="section-fcm">
+            <div class="section-header">
+              <h2 class="section-title">FCM Push Notifications</h2>
+              <p class="section-desc">Configure Firebase Cloud Messaging to push alerts to your Android devices.</p>
+            </div>
+            <div class="field-group">
+              <div class="field-row">
+                <div class="field"><label class="field-label" for="fcm-enabled">Enable Notifications</label><span class="field-hint">If disabled, pushes are skipped.</span><select name="notifications.enabled" id="fcm-enabled" class="control"><option value="true" {{ "selected" if config.notifications.enabled }}>Yes</option><option value="false" {{ "selected" if not config.notifications.enabled }}>No</option></select></div>
+                <div class="field"><label class="field-label" for="delivery-method">Delivery Method</label><span class="field-hint">Built-in sends directly to your Firebase project.</span><select name="notifications.delivery_method" id="delivery-method" class="control"><option value="fcm" {{ "selected" if config.notifications.delivery_method == "fcm" }}>Built-in — send directly to my Firebase project</option><option value="relay" {{ "selected" if config.notifications.delivery_method == "relay" }}>Third-party relay (optional)</option></select></div>
+              </div>
+            </div>
+            <div class="field-group" data-delivery-method="fcm">
+              <div class="group-label">Firebase Configuration</div>
+              <div class="field"><label class="field-label" for="firebase-sa-json">Service Account JSON</label><span class="field-hint">Paste the full service account key JSON from Firebase (Project Settings → Service Accounts → Generate new private key). Treat it as a secret.</span><textarea name="firebase.service_account_json" id="firebase-sa-json" class="control font-mono" style="min-height:140px">{{ config.firebase.service_account_json }}</textarea></div>
+            </div>
+            <div class="field-group" data-delivery-method="relay">
+              <div class="group-label">Relay Configuration</div>
+              <div class="field"><label class="field-label" for="relay-api-url">Relay API URL</label><span class="field-hint">The third-party relay endpoint that forwards to FCM.</span><input name="notifications.fcm_api_url" id="relay-api-url" value="{{ config.notifications.fcm_api_url }}" class="control"></div>
+            </div>
+            <div class="field-group">
+              <div class="group-label">Device Tokens</div>
+              <div class="field token-field">
+                <span class="field-hint">FCM registration tokens from your Android app. Select a row to target it when testing.</span>
+                <textarea class="token-values" name="notifications.tokens" style="display:none">{{ config.notifications.tokens | tojson }}</textarea>
+                <div class="token-list" style="margin-top:8px"></div>
+                <div class="token-add-grid" style="margin-top:8px">
+                  <input class="token-name-input control" type="text" placeholder="Device name" autocomplete="off">
+                  <input class="token-value-input control font-mono" type="text" placeholder="FCM token" autocomplete="off">
+                  <button class="btn btn-secondary token-add" type="button" style="white-space:nowrap">+ Add</button>
+                </div>
+                <div class="token-test-row">
+                  <button id="test-selected-fcm-token" class="btn btn-ghost btn-sm" type="button">Test selected device</button>
+                  <button id="test-all-fcm-tokens" class="btn btn-ghost btn-sm" type="button">Test all devices</button>
+                  <span id="fcm-test-status" class="fcm-status" style="display:none;align-self:center"></span>
+                </div>
+              </div>
+            </div>
+            <div class="save-bar"><button class="btn btn-brand" type="submit">Save and restart listener</button></div>
+          </div>
+
+          <!-- Notification -->
+          <div class="config-section" id="section-notification">
+            <div class="section-header">
+              <h2 class="section-title">Notification Content</h2>
+              <p class="section-desc">Customise the title, message, attachments, and action buttons for push notifications.</p>
+            </div>
+            <div class="field-group">
+              <div class="group-label">Text Templates</div>
+              <div class="field"><label class="field-label" for="notif-title">Title Template</label><span class="field-hint">Leave blank to use the detected objects.</span><input name="notifications.title" id="notif-title" value="{{ config.notifications.title }}" class="control"></div>
+              <div class="field"><label class="field-label" for="notif-message">Message Template</label><span class="field-hint">Available: <code>{{ '{{ label }}' }}</code>, <code>{{ '{{ camera_name }}' }}</code>, <code>{{ '{{ after_zones }}' }}</code>, <code>{{ '{{ event_id }}' }}</code>, <code>{{ '{{ review_id }}' }}</code>.</span><textarea name="notifications.message" id="notif-message" class="control">{{ config.notifications.message }}</textarea></div>
+              <div class="field"><label class="field-label" for="notif-sub-label">Sub-label Message Template</label><span class="field-hint">Used when Frigate returns a sub-label. Available: <code>{{ '{{ sub_label }}' }}</code>, <code>{{ '{{ camera_name }}' }}</code>, <code>{{ '{{ label }}' }}</code>.</span><textarea name="notifications.sub_label_message" id="notif-sub-label" class="control">{{ config.notifications.sub_label_message }}</textarea></div>
+              <div class="field"><label class="field-label" for="notif-subtitle">Subtitle Template</label><span class="field-hint">Secondary notification heading.</span><input name="notifications.subtitle" id="notif-subtitle" value="{{ config.notifications.subtitle }}" class="control"></div>
+            </div>
+            <div class="field-group">
+              <div class="group-label">Attachments</div>
+              <div class="field"><label class="field-label" for="notif-attachment">Initial Attachment</label><span class="field-hint">Image or GIF for the first notification.</span><textarea name="notifications.attachment" id="notif-attachment" class="control" style="min-height:64px">{{ config.notifications.attachment }}</textarea></div>
+              <div class="field"><label class="field-label" for="notif-attachment-2">Subsequent Attachment</label><span class="field-hint">Image or GIF for updates. Leave blank to keep using the initial attachment.</span><textarea name="notifications.attachment_2" id="notif-attachment-2" class="control" style="min-height:64px">{{ config.notifications.attachment_2 }}</textarea></div>
+              <div class="field"><label class="field-label" for="notif-video">Video Template</label><span class="field-hint">Optional clip URL. Use <code>{{ '{{ clip }}' }}</code> for the Frigate event clip.</span><textarea name="notifications.video" id="notif-video" class="control" style="min-height:64px">{{ config.notifications.video }}</textarea></div>
+              <div class="field-row">
+                <div class="field"><label class="field-label" for="notif-expanded-thumb">Expanded Thumbnail</label><span class="field-hint">Photo or GIF preview.</span><select name="notifications.expanded_thumbnail" id="notif-expanded-thumb" class="control"><option value="photo" {{ "selected" if config.notifications.expanded_thumbnail == "photo" }}>Photo</option><option value="gif" {{ "selected" if config.notifications.expanded_thumbnail == "gif" }}>GIF</option></select></div>
+                <div class="field"><label class="field-label" for="notif-click-action">Click Action</label><span class="field-hint">URL opened when notification is tapped.</span><input name="notifications.click_action" id="notif-click-action" value="{{ config.notifications.click_action }}" class="control"></div>
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="group-label">Action Buttons</div>
+              <p class="field-hint" style="margin-bottom:8px">Up to 3 buttons. URLs support <code>{{ '{{ attachment }}' }}</code>, <code>{{ '{{ clip }}' }}</code>, <code>{{ '{{ base_url }}' }}</code>.</p>
+              <div class="field kv-field" data-field="notifications.buttons">
+                <textarea class="kv-values" name="notifications.buttons" style="display:none">{{ config.notifications.buttons | tojson }}</textarea>
+                <div class="kv-list"></div>
+                <button class="btn btn-secondary btn-sm kv-add" type="button" style="margin-top:8px;align-self:start">+ Add button</button>
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="group-label">Delivery Behaviour</div>
+              <div class="field-row">
+                <div class="field"><label class="field-label" for="notif-group">Group Template</label><span class="field-hint">Use <code>{{ '{{ camera }}' }}</code> to group by camera.</span><input name="notifications.group" id="notif-group" value="{{ config.notifications.group }}" class="control"></div>
+                <div class="field"><label class="field-label" for="notif-color">Color</label><span class="field-hint">Android notification color, e.g. <code>#03a9f4</code>.</span><input name="notifications.color" id="notif-color" value="{{ config.notifications.color }}" class="control"></div>
+              </div>
+              <div class="field-row">
+                <div class="field"><label class="field-label" for="notif-channel">Channel</label><span class="field-hint">Android notification channel.</span><input name="notifications.channel" id="notif-channel" value="{{ config.notifications.channel }}" class="control"></div>
+                <div class="field"><label class="field-label" for="notif-final-update">Final Update</label><span class="field-hint">Send update when review ends.</span><select name="notifications.final_update" id="notif-final-update" class="control"><option value="true" {{ "selected" if config.notifications.final_update }}>Yes</option><option value="false" {{ "selected" if not config.notifications.final_update }}>No</option></select></div>
+              </div>
+              <div class="field-row">
+                <div class="field"><label class="field-label" for="notif-final-delay">Final Delay (s)</label><span class="field-hint">Delay before final update.</span><input name="notifications.final_delay" id="notif-final-delay" value="{{ config.notifications.final_delay }}" class="control"></div>
+                <div class="field"><label class="field-label" for="notif-alert-once">Alert Once</label><span class="field-hint">Only first notification plays sound.</span><select name="notifications.alert_once" id="notif-alert-once" class="control"><option value="true" {{ "selected" if config.notifications.alert_once }}>Yes</option><option value="false" {{ "selected" if not config.notifications.alert_once }}>No</option></select></div>
+              </div>
+              <div class="field-row">
+                <div class="field"><label class="field-label" for="notif-critical">Critical</label><span class="field-hint">Use alarm stream channel.</span><select name="notifications.critical" id="notif-critical" class="control"><option value="true" {{ "selected" if config.notifications.critical }}>Yes</option><option value="false" {{ "selected" if not config.notifications.critical }}>No</option></select></div>
+                <div class="field"><label class="field-label" for="notif-sticky">Sticky</label><span class="field-hint">Keep notification visible until dismissed.</span><select name="notifications.sticky" id="notif-sticky" class="control"><option value="true" {{ "selected" if config.notifications.sticky }}>Yes</option><option value="false" {{ "selected" if not config.notifications.sticky }}>No</option></select></div>
+              </div>
+              <div class="field-row">
+                <div class="field"><label class="field-label" for="notif-android-auto">Android Auto</label><span class="field-hint">Car UI compatible.</span><select name="notifications.android_auto" id="notif-android-auto" class="control"><option value="true" {{ "selected" if config.notifications.android_auto }}>Yes</option><option value="false" {{ "selected" if not config.notifications.android_auto }}>No</option></select></div>
+              </div>
+            </div>
+            <div class="save-bar"><button class="btn btn-brand" type="submit">Save and restart listener</button></div>
+          </div>
+
+          <!-- Filters -->
+          <div class="config-section" id="section-filters">
+            <div class="section-header">
+              <h2 class="section-title">Filters</h2>
+              <p class="section-desc">Control which Frigate events trigger notifications.</p>
+            </div>
+            <div class="field-group">
+              <div class="group-label">Event Sources</div>
+              <div class="field chip-field"><label class="field-label">Cameras</label><span class="field-hint">Only notify for these camera names. Leave empty for all.</span><textarea class="chip-values" name="filters.cameras" style="display:none">{{ config.filters.cameras|join("\n") }}</textarea><div class="chip-list" style="margin:8px 0 6px"></div><div class="chip-row"><input class="chip-input control" type="text" placeholder="Camera name" autocomplete="off"><button class="chip-add-btn chip-add" type="button">Add</button></div></div>
+              <div class="field"><label class="field-label">Severities</label><span class="field-hint">Allowed review severities.</span><textarea class="severity-values" name="filters.review_severity" style="display:none">{{ config.filters.review_severity|join("\n") }}</textarea><div class="check-cards" style="margin-top:8px"><label class="check-card"><input class="severity-check" type="checkbox" value="alert" {{ "checked" if "alert" in config.filters.review_severity }}> Alert</label><label class="check-card"><input class="severity-check" type="checkbox" value="detection" {{ "checked" if "detection" in config.filters.review_severity }}> Detection</label></div></div>
+              <div class="field chip-field"><label class="field-label">Labels / Objects</label><span class="field-hint">Only notify when label matches.</span><textarea class="chip-values" name="filters.labels" style="display:none">{{ config.filters.labels|join("\n") }}</textarea><div class="chip-list" style="margin:8px 0 6px"></div><div class="chip-row"><input class="chip-input control" type="text" placeholder="e.g. person" autocomplete="off"><button class="chip-add-btn chip-add" type="button">Add</button></div></div>
+            </div>
+            <div class="field-group">
+              <div class="group-label">Zone Rules</div>
+              <div class="field-row">
+                <div class="field"><label class="field-label" for="zones-enabled">Zone Filter</label><span class="field-hint">Require a matching zone before sending.</span><select name="filters.zones_enabled" id="zones-enabled" class="control"><option value="true" {{ "selected" if config.filters.zones_enabled }}>Yes</option><option value="false" {{ "selected" if not config.filters.zones_enabled }}>No</option></select></div>
+                <div class="field"><label class="field-label" for="zone-multi">Require All Zones</label><span class="field-hint">Require every configured zone instead of any.</span><select name="filters.zone_multi" id="zone-multi" class="control"><option value="true" {{ "selected" if config.filters.zone_multi }}>Yes</option><option value="false" {{ "selected" if not config.filters.zone_multi }}>No</option></select></div>
+              </div>
+              <div class="field-row">
+                <div class="field"><label class="field-label" for="zone-order">Enforce Zone Order</label><span class="field-hint">Only pass if zones entered in configured order.</span><select name="filters.zone_order_enforced" id="zone-order" class="control"><option value="true" {{ "selected" if config.filters.zone_order_enforced }}>Yes</option><option value="false" {{ "selected" if not config.filters.zone_order_enforced }}>No</option></select></div>
+              </div>
+              <div class="field chip-field"><label class="field-label">Zones</label><span class="field-hint">Zone names from Frigate, lowercase and underscore-formatted.</span><textarea class="chip-values" name="filters.zones" style="display:none">{{ config.filters.zones|join("\n") }}</textarea><div class="chip-list" style="margin:8px 0 6px"></div><div class="chip-row"><input class="chip-input control" type="text" placeholder="zone_name" autocomplete="off"><button class="chip-add-btn chip-add" type="button">Add</button></div></div>
+            </div>
+            <div class="field-group">
+              <div class="group-label">Schedule &amp; Advanced</div>
+              <div class="field chip-field"><label class="field-label">Disabled Hours (0–23)</label><span class="field-hint">Hours when notifications are disabled. Uses server local time.</span><textarea class="chip-values" name="filters.disable_hours" style="display:none">{{ config.filters.disable_hours|join("\n") }}</textarea><div class="chip-list" style="margin:8px 0 6px"></div><div class="chip-row"><input class="chip-input control" type="number" min="0" max="23" placeholder="0–23"><button class="chip-add-btn chip-add" type="button">Add</button></div></div>
+              <div class="field"><label class="field-label" for="custom-filter">Custom Filter Template</label><span class="field-hint">Advanced Jinja expression that renders <code>true</code> or <code>false</code>.</span><textarea name="filters.custom_filter" id="custom-filter" class="control font-mono">{{ config.filters.custom_filter }}</textarea></div>
+            </div>
+            <div class="save-bar"><button class="btn btn-brand" type="submit">Save and restart listener</button></div>
+          </div>
+
+          <!-- Timers -->
+          <div class="config-section" id="section-timers">
+            <div class="section-header">
+              <h2 class="section-title">Timers</h2>
+              <p class="section-desc">Tune cooldowns, delays, and timeouts for notification delivery.</p>
+            </div>
+            <div class="field-group">
+              <div class="field-row">
+                <div class="field"><label class="field-label" for="timer-cooldown">Cooldown (s)</label><span class="field-hint">Minimum time between notification starts per camera.</span><input name="timers.cooldown" id="timer-cooldown" value="{{ config.timers.cooldown }}" class="control"></div>
+                <div class="field"><label class="field-label" for="timer-initial-delay">Initial Delay (s)</label><span class="field-hint">Wait before sending the first new review notification.</span><input name="timers.initial_delay" id="timer-initial-delay" value="{{ config.timers.initial_delay }}" class="control"></div>
+              </div>
+              <div class="field-row">
+                <div class="field"><label class="field-label" for="timer-timeout">Timeout (min)</label><span class="field-hint">Reserved for Home Assistant blueprint parity.</span><input name="timers.timeout" id="timer-timeout" value="{{ config.timers.timeout }}" class="control"></div>
+                <div class="field"><label class="field-label" for="timer-silence">Silence Timer (min)</label><span class="field-hint">Reserved for temporary silence parity.</span><input name="timers.silence_timer" id="timer-silence" value="{{ config.timers.silence_timer }}" class="control"></div>
+              </div>
+              <div class="field-row">
+                <div class="field"><label class="field-label" for="timer-loiter">Loiter Timer (min)</label><span class="field-hint">Reserved for loitering parity.</span><input name="timers.loiter_timer" id="timer-loiter" value="{{ config.timers.loiter_timer }}" class="control"></div>
+              </div>
+            </div>
+            <div class="save-bar"><button class="btn btn-brand" type="submit">Save and restart listener</button></div>
+          </div>
+
+          <!-- Telegram -->
+          <div class="config-section" id="section-telegram">
+            <div class="section-header">
+              <h2 class="section-title">Telegram</h2>
+              <p class="section-desc">Optionally forward matching notifications to a Telegram bot.</p>
+            </div>
+            <div class="field-group">
+              <div class="field-row">
+                <div class="field"><label class="field-label" for="tg-enabled">Enabled</label><span class="field-hint">Also send matching notifications to Telegram.</span><select name="telegram.enabled" id="tg-enabled" class="control"><option value="true" {{ "selected" if config.telegram.enabled }}>Yes</option><option value="false" {{ "selected" if not config.telegram.enabled }}>No</option></select></div>
+                <div class="field"><label class="field-label" for="tg-chat-id">Chat ID</label><span class="field-hint">Telegram chat id to receive notifications.</span><input name="telegram.chat_id" id="tg-chat-id" value="{{ config.telegram.chat_id }}" class="control"></div>
+              </div>
+              <div class="field-row">
+                <div class="field"><label class="field-label" for="tg-bot-token">Bot Token</label><span class="field-hint">Telegram bot token from BotFather.</span><input name="telegram.bot_token" id="tg-bot-token" type="password" value="{{ config.telegram.bot_token }}" class="control"></div>
+                <div class="field"><label class="field-label" for="tg-base-url">Media Base URL</label><span class="field-hint">Optional internal media URL override.</span><input name="telegram.base_url" id="tg-base-url" value="{{ config.telegram.base_url }}" class="control"></div>
+              </div>
+            </div>
+            <div class="save-bar"><button class="btn btn-brand" type="submit">Save and restart listener</button></div>
+          </div>
+
+        </form>
+      </section>
+
+      <!-- LOGS TAB -->
+      <section id="logs-tab" class="tab-panel">
+        {% include "partials/logs.html" %}
+      </section>
+
+      <!-- TEST TAB -->
+      <section id="test-tab" class="tab-panel">
+        {% include "partials/test_payload.html" %}
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

@@ -9,7 +9,7 @@
     "username": "",
     "password": "",
     "topic": "frigate/reviews",
-    "client_id": "frigate-native-automation"
+    "client_id": "frigate-native-notify"
   },
   "websocket": {
     "base_url": "ws://frigate.local:5000",

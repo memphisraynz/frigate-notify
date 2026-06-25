@@ -1,21 +1,24 @@
-<div class="rounded-lg border border-slate-800 bg-slate-900 p-4 space-y-4">
-  <div>
-    <h2 class="text-lg font-semibold">Emulate WebSocket Payload</h2>
-    <p class="mt-1 text-sm text-slate-400">
+<div style="max-width:860px">
+  <div style="margin-bottom:24px">
+    <h2 style="font-size:22px;font-weight:500;color:var(--heading);margin:0 0 6px">Test Payload</h2>
+    <p style="font-size:14px;color:var(--body-subtle);margin:0;line-height:1.5">
       Paste or edit a Frigate review event below &mdash; the same shape Frigate sends on the
-      <code class="rounded bg-slate-950 px-1 py-0.5 text-xs">reviews</code> WebSocket topic (a <code class="rounded bg-slate-950 px-1 py-0.5 text-xs">type</code> /
-      <code class="rounded bg-slate-950 px-1 py-0.5 text-xs">before</code> / <code class="rounded bg-slate-950 px-1 py-0.5 text-xs">after</code> object).
-      Sending it here runs it through the full pipeline (build notification &rarr; send to all configured tokens), bypassing filters and cooldown,
-      so you can test changes instantly without restarting or editing code.
+      <code>reviews</code> WebSocket topic (a <code>type</code> / <code>before</code> / <code>after</code> object).
+      Sending it runs through the full pipeline, bypassing filters and cooldown, so you can test instantly without restarting.
     </p>
   </div>
 
-  <textarea id="test-payload-input" class="control min-h-[28rem] font-mono text-xs">{{ sample_payload }}</textarea>
+  <div style="background:var(--neutral-primary-soft);border:1px solid var(--border-default);border-radius:12px;padding:24px;box-shadow:var(--shadow-sm)">
+    <textarea id="test-payload-input" class="control font-mono" style="min-height:28rem;width:100%">{{ sample_payload }}</textarea>
 
-  <div class="flex flex-wrap gap-2">
-    <button id="send-test-payload" class="btn" type="button">Send Test Payload</button>
-    <button id="save-test-payload" class="rounded-md border border-slate-700 px-3 py-2 text-sm hover:bg-slate-800" type="button">Save payload</button>
-    <button id="reset-test-payload" class="rounded-md border border-slate-700 px-3 py-2 text-sm hover:bg-slate-800" type="button">Reset to sample</button>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:16px;align-items:center">
+      <button id="send-test-payload" class="btn btn-brand" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        Send Test Payload
+      </button>
+      <button id="save-test-payload" class="btn btn-ghost btn-sm" type="button">Save payload</button>
+      <button id="reset-test-payload" class="btn btn-ghost btn-sm" type="button">Reset to sample</button>
+      <span id="test-payload-status" style="display:none;font-size:13px;margin-left:4px"></span>
+    </div>
   </div>
-  <p id="test-payload-status" class="hidden text-sm text-blue-200"></p>
 </div>

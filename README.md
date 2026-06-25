@@ -1,8 +1,6 @@
-# Frigate Native Automation Server
+# Frigate Native Notify Server
 
 Docker web server and MQTT listener for Frigate Native notifications.
-
-It mirrors the Home Assistant blueprint flow in `home-assistant/new-frigate-automation.yaml`:
 
 - listens to Frigate review MQTT messages, default `frigate/reviews`
 - applies camera, severity, object, zone, ordered-zone, time, cooldown, and custom filters
@@ -15,7 +13,7 @@ It mirrors the Home Assistant blueprint flow in `home-assistant/new-frigate-auto
 1. Start the service:
 
    ```bash
-   cd automation-server
+   cd notify-server
    docker compose up -d --build
    ```
 
@@ -25,4 +23,4 @@ It mirrors the Home Assistant blueprint flow in `home-assistant/new-frigate-auto
 
 - `ADMIN_PASSWORD`: internal web UI password.
 - `APP_SECRET`: Flask session signing secret.
-- `FRIGATE_AUTOMATION_CONFIG`: persisted JSON config path, defaults to `/data/config.json`.
+- `FRIGATE_NOTIFY_CONFIG`: persisted JSON config path, defaults to `/data/config.json`.

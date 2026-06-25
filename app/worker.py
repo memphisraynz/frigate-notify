@@ -248,7 +248,10 @@ class AutomationWorker:
         notification_context = (
             {**context, "type": "new"} if first_matching_event and event_type == "update" else context
         )
-        notification = build_notification(config, notification_context, silent=not first_matching_event)
+        # "end" events are always silent updates — they replace the existing
+        # notification on the device rather than firing a new alert sound.
+        is_silent = not first_matching_event or event_type == "end"
+        notification = build_notification(config, notification_context, silent=is_silent)
         sent = send_notification(config, notification)
         self.sent += sent
         self.send_telegram(config, notification)

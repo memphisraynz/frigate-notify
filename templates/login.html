@@ -3,25 +3,177 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Frigate Automation Login</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <title>Frigate Notify — Sign in</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,300;8..144,400;8..144,500;8..144,600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --neutral-primary: #141218;
+      --neutral-primary-soft: #1D1B20;
+      --neutral-secondary-medium: #2B2930;
+      --neutral-tertiary-medium: #36343B;
+      --brand-soft: #4F378B;
+      --brand-softer: #2D1F5E;
+      --fg-brand-strong: #EADDFF;
+      --fg-brand: #D0BCFF;
+      --border-default: #2B2930;
+      --border-default-medium: #49454F;
+      --border-brand-subtle: #4F378B;
+      --border-danger-subtle: #8C1D18;
+      --danger-soft: #410002;
+      --fg-danger: #F2B8B5;
+      --heading: #E6E0E4;
+      --body: #CAC4D0;
+      --body-subtle: #938F99;
+      --shadow-lg: 0 8px 20px -4px rgb(0 0 0 / 0.08), 0 4px 12px -2px rgb(0 0 0 / 0.04);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Roboto Flex', sans-serif;
+      background: var(--neutral-primary);
+      color: var(--body);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .login-card {
+      width: 100%;
+      max-width: 400px;
+      background: var(--neutral-primary-soft);
+      border: 1px solid var(--border-default);
+      border-radius: 16px;
+      padding: 36px 32px;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .login-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 28px;
+    }
+    .login-brand-icon {
+      width: 36px; height: 36px;
+      background: var(--brand-soft);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .login-brand-icon svg { color: var(--fg-brand-strong); }
+    .login-brand-name {
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--heading);
+    }
+    .login-brand-name span { color: var(--fg-brand); }
+
+    .login-heading {
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--heading);
+      margin-bottom: 6px;
+    }
+    .login-sub {
+      font-size: 14px;
+      color: var(--body-subtle);
+      margin-bottom: 28px;
+      line-height: 1.5;
+    }
+
+    .error-alert {
+      background: var(--danger-soft);
+      border: 1px solid var(--border-danger-subtle);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: var(--fg-danger);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 20px;
+    }
+    .field-label {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--heading);
+    }
+    .field-input {
+      background: var(--neutral-secondary-medium);
+      border: 1px solid var(--border-default-medium);
+      border-radius: 12px;
+      padding: 11px 14px;
+      font-size: 14px;
+      color: var(--heading);
+      font-family: 'Roboto Flex', sans-serif;
+      outline: none;
+      transition: all 200ms;
+      width: 100%;
+    }
+    .field-input:hover { border-color: #79747E; }
+    .field-input:focus {
+      border-color: var(--fg-brand);
+      box-shadow: 0 0 0 2px var(--brand-soft);
+    }
+
+    .submit-btn {
+      width: 100%;
+      padding: 12px 24px;
+      border-radius: 9999px;
+      border: none;
+      background: var(--brand-soft);
+      color: var(--fg-brand-strong);
+      font-size: 14px;
+      font-weight: 500;
+      font-family: 'Roboto Flex', sans-serif;
+      cursor: pointer;
+      transition: all 200ms;
+      letter-spacing: 0.1px;
+    }
+    .submit-btn:hover { background: #675496; }
+    .submit-btn:focus { outline: none; box-shadow: 0 0 0 4px var(--brand-soft); }
+  </style>
 </head>
-<body class="min-h-screen bg-slate-950 text-slate-100">
-  <main class="grid min-h-screen place-items-center px-4">
-    <form method="post" class="w-full max-w-sm space-y-4 rounded-lg border border-slate-800 bg-slate-900 p-5 shadow-xl">
-      <div>
-        <h1 class="text-xl font-semibold">Frigate Automation</h1>
-        <p class="mt-1 text-sm text-slate-400">Internal configuration access</p>
+<body>
+  <form method="post" class="login-card">
+    <div class="login-brand">
+      <div class="login-brand-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+          <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1" fill="currentColor"/>
+        </svg>
       </div>
-      {% if error %}
-        <p class="rounded-md border border-red-900 bg-red-950 px-3 py-2 text-sm text-red-200">{{ error }}</p>
-      {% endif %}
-      <label class="block text-sm text-slate-300">
-        Password
-        <input name="password" type="password" autofocus class="mt-2 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none focus:border-blue-500">
-      </label>
-      <button class="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500">Sign in</button>
-    </form>
-  </main>
+      <div class="login-brand-name">Frigate <span>Notify</span></div>
+    </div>
+
+    <h1 class="login-heading">Sign in</h1>
+    <p class="login-sub">Internal configuration access</p>
+
+    {% if error %}
+      <div class="error-alert">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        {{ error }}
+      </div>
+    {% endif %}
+
+    <div class="field">
+      <label class="field-label" for="password">Password</label>
+      <input name="password" id="password" type="password" autofocus class="field-input" placeholder="Enter your password">
+    </div>
+
+    <button type="submit" class="submit-btn">Sign in</button>
+  </form>
 </body>
 </html>

@@ -1,18 +1,19 @@
-document.querySelectorAll(".control").forEach((item) => {
-  item.classList.add("w-full", "rounded-md", "border", "border-slate-700", "bg-slate-950", "px-3", "py-2", "text-slate-100", "outline-none", "focus:border-blue-500");
-});
-document.querySelectorAll(".field").forEach((item) => {
-  item.classList.add("block", "text-sm", "font-medium", "text-slate-300");
-});
-document.querySelectorAll(".hint").forEach((item) => {
-  item.classList.add("mt-1", "block", "text-xs", "font-normal", "leading-5", "text-slate-400");
-});
-document.querySelectorAll(".btn").forEach((item) => {
-  item.classList.add("rounded-md", "bg-blue-600", "px-4", "py-2", "text-sm", "font-medium", "text-white", "hover:bg-blue-500");
-});
-document.querySelectorAll(".check-card").forEach((item) => {
-  item.classList.add("inline-flex", "items-center", "gap-2", "rounded-md", "border", "border-slate-700", "bg-slate-950", "px-3", "py-2", "text-sm", "text-slate-200");
-});
+// ─── Style injection for dynamically-created controls ─────────────────────
+// All controls now have the "control" class set in HTML directly.
+// These helpers still apply classes to JS-generated rows inside chip/token/kv fields.
+
+function applyControlClasses(el) {
+  el.style.background    = "var(--neutral-secondary-medium)";
+  el.style.border        = "1px solid var(--border-default-medium)";
+  el.style.borderRadius  = "12px";
+  el.style.padding       = "10px 14px";
+  el.style.fontSize      = "14px";
+  el.style.color         = "var(--heading)";
+  el.style.fontFamily    = "'Roboto Flex', sans-serif";
+  el.style.outline       = "none";
+  el.style.transition    = "all 200ms";
+  el.style.width         = "100%";
+}
 
 // ─── Chip fields ───────────────────────────────────────────────────────────
 
@@ -37,11 +38,10 @@ function setupChipField(field) {
     list.innerHTML = "";
     values().forEach((item) => {
       const chip   = document.createElement("span");
-      chip.className = "chip inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-slate-100";
+      chip.className = "chip";
       chip.textContent = item;
       const remove = document.createElement("button");
-      remove.type = "button"; remove.textContent = "x";
-      remove.className = "text-slate-400 hover:text-white";
+      remove.type = "button"; remove.textContent = "×";
       remove.addEventListener("click", () => { save(values().filter((v) => v !== item)); render(); });
       chip.appendChild(remove);
       list.appendChild(chip);
@@ -85,30 +85,35 @@ function setupTokenField(field) {
   function render() {
     list.innerHTML = "";
     const entries = load();
-    if (!entries.length) { list.innerHTML = '<p class="text-xs text-slate-500 italic">No devices added yet.</p>'; return; }
+    if (!entries.length) {
+      list.innerHTML = '<p style="font-size:12px;color:var(--body-subtle);font-style:italic;padding:4px 0">No devices added yet.</p>';
+      return;
+    }
     entries.forEach((entry, index) => {
       const row = document.createElement("div");
-      row.className = "token-row grid grid-cols-[1fr_2fr_auto] gap-2 items-center rounded-md border border-slate-700 bg-slate-950 px-3 py-2 cursor-pointer";
+      row.className = "token-row";
       row.dataset.index = index;
       row.addEventListener("click", () => selectTokenRow(field, row));
 
       const name = document.createElement("span");
-      name.className = "text-sm text-slate-200 truncate";
+      name.className = "token-row-name";
       name.textContent = entry.name || "(unnamed)";
 
       const token = document.createElement("span");
-      token.className = "text-xs font-mono text-slate-400 truncate";
-      token.textContent = entry.token ? entry.token.slice(0, 12) + "..." : "(empty)";
+      token.className = "token-row-value";
+      token.textContent = entry.token ? entry.token.slice(0, 16) + "…" : "(empty)";
       token.title = entry.token || "";
 
       const removeBtn = document.createElement("button");
       removeBtn.type = "button"; removeBtn.textContent = "×";
-      removeBtn.className = "text-slate-500 hover:text-white text-lg leading-none";
+      removeBtn.style.cssText = "background:none;border:none;cursor:pointer;font-size:18px;line-height:1;color:var(--body-subtle);padding:0 4px";
       removeBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         const cur = load(); cur.splice(index, 1); save(cur);
         delete field.dataset.selectedToken; render();
       });
+      removeBtn.addEventListener("mouseover", () => { removeBtn.style.color = "var(--fg-brand)"; });
+      removeBtn.addEventListener("mouseout",  () => { removeBtn.style.color = "var(--body-subtle)"; });
 
       row.appendChild(name); row.appendChild(token); row.appendChild(removeBtn);
       list.appendChild(row);
@@ -128,8 +133,8 @@ function setupTokenField(field) {
 }
 
 function selectTokenRow(field, row) {
-  field.querySelectorAll(".token-row").forEach((r) => r.classList.remove("border-blue-400", "bg-blue-950", "ring-2", "ring-blue-500"));
-  row.classList.add("border-blue-400", "bg-blue-950", "ring-2", "ring-blue-500");
+  field.querySelectorAll(".token-row").forEach((r) => r.classList.remove("selected"));
+  row.classList.add("selected");
   const entries = JSON.parse(field.querySelector(".token-values").value || "[]");
   const entry   = entries[Number(row.dataset.index)];
   field.dataset.selectedToken = entry ? entry.token : "";
@@ -149,18 +154,18 @@ function setupKvField(field) {
     list.innerHTML = "";
     load().forEach((entry, index) => {
       const row = document.createElement("div");
-      row.className = "grid grid-cols-[1fr_2fr_auto] gap-2 items-start";
+      row.className = "kv-row";
 
       const ti = document.createElement("input"); ti.type = "text"; ti.placeholder = "Button label"; ti.value = entry.title || "";
-      ti.className = "control w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none focus:border-blue-500 text-sm";
+      applyControlClasses(ti);
       ti.addEventListener("input", () => { const c = load(); c[index] = { ...c[index], title: ti.value }; save(c); });
 
       const ui = document.createElement("input"); ui.type = "text"; ui.placeholder = "URL or template"; ui.value = entry.url || "";
-      ui.className = "control w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none focus:border-blue-500 text-sm font-mono";
+      applyControlClasses(ui); ui.style.fontFamily = "monospace"; ui.style.fontSize = "12px";
       ui.addEventListener("input", () => { const c = load(); c[index] = { ...c[index], url: ui.value }; save(c); });
 
       const rb = document.createElement("button"); rb.type = "button"; rb.textContent = "×";
-      rb.className = "rounded-md border border-slate-700 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 text-lg leading-none";
+      rb.className = "btn btn-ghost btn-sm"; rb.style.padding = "10px 14px"; rb.style.fontSize = "18px";
       rb.addEventListener("click", () => { const c = load(); c.splice(index, 1); save(c); render(); });
 
       row.appendChild(ti); row.appendChild(ui); row.appendChild(rb);
@@ -172,20 +177,49 @@ function setupKvField(field) {
   render();
 }
 
-// ─── Tab switching ─────────────────────────────────────────────────────────
+// ─── Top tab switching ─────────────────────────────────────────────────────
 
 function setupTabs() {
   const buttons = [...document.querySelectorAll(".tab-button")];
   const panels  = [...document.querySelectorAll(".tab-panel")];
+  const sidebar  = document.getElementById("config-sidebar");
+
   buttons.forEach((btn) => {
     btn.addEventListener("click", () => {
-      buttons.forEach((b) => { b.classList.remove("bg-blue-600", "text-white"); b.classList.add("text-slate-300"); });
-      btn.classList.add("bg-blue-600", "text-white"); btn.classList.remove("text-slate-300");
-      panels.forEach((p) => p.classList.add("hidden"));
-      document.getElementById(`${btn.dataset.tab}-tab`)?.classList.remove("hidden");
+      buttons.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      panels.forEach((p) => p.classList.remove("active"));
+      document.getElementById(`${btn.dataset.tab}-tab`)?.classList.add("active");
+      // Show/hide sidebar based on whether we're on config tab
+      if (sidebar) {
+        sidebar.style.display = btn.dataset.tab === "config" ? "" : "none";
+      }
     });
   });
 }
+
+// ─── Config sidebar section switching ─────────────────────────────────────
+
+function setupConfigSidebar() {
+  const items    = [...document.querySelectorAll(".sidebar-item[data-section]")];
+  const sections = [...document.querySelectorAll(".config-section")];
+
+  items.forEach((item) => {
+    item.addEventListener("click", () => {
+      items.forEach((i) => i.classList.remove("active"));
+      item.classList.add("active");
+      sections.forEach((s) => s.classList.remove("active"));
+      document.getElementById(`section-${item.dataset.section}`)?.classList.add("active");
+    });
+  });
+}
+
+// ─── Mobile sidebar toggle ─────────────────────────────────────────────────
+
+document.getElementById("sidebar-toggle-btn")?.addEventListener("click", () => {
+  const sidebar = document.getElementById("config-sidebar");
+  if (sidebar) sidebar.classList.toggle("open");
+});
 
 // ─── Exclusive show/hide groups ────────────────────────────────────────────
 
@@ -193,33 +227,32 @@ function setupExclusiveGroup(selectId, attr) {
   const select = document.getElementById(selectId);
   if (!select) return;
   function sync() {
-    document.querySelectorAll(`[${attr}]`).forEach((g) => g.classList.toggle("hidden", g.getAttribute(attr) !== select.value));
+    document.querySelectorAll(`[${attr}]`).forEach((g) => {
+      const matches = g.getAttribute(attr) === select.value;
+      if (g.tagName === "DIV" && g.classList.contains("field-group")) {
+        g.style.display = matches ? "" : "none";
+      } else {
+        g.classList.toggle("hidden", !matches);
+      }
+    });
   }
   select.addEventListener("change", sync); sync();
 }
 
 // ─── Live logs — incremental table (never re-renders existing rows) ────────
-//
-// The root cause of selection being destroyed was innerHTML rebuilding the
-// entire tbody on every poll. The fix: track which log entries are already
-// in the DOM by a stable key, and only prepend genuinely new rows.
-// Existing rows are never touched, so text selections survive indefinitely.
 
 const LOG_INITIAL_ROWS = 50;
 let activeLogLevel  = "all";
 let activeLogSearch = "";
 let showAllRows     = false;
 
-// Set of keys for rows already rendered — survives across refreshes
 const knownLogKeys = new Set();
 
-// Seed known keys from server-rendered rows so the first poll doesn't duplicate them
 document.querySelectorAll("#log-tbody .log-row[data-msgkey]").forEach((row) => {
   knownLogKeys.add(row.dataset.msgkey);
 });
 
 function makeLogKey(log) {
-  // Stable identity: timestamp + message. Both are fixed once logged.
   return log.time + "\x00" + log.message;
 }
 
@@ -247,33 +280,31 @@ function buildDetailRows(fields) {
   if (!fields) return "";
   return Object.entries(fields).map(([k, v]) => {
     let displayVal;
-    // Objects and arrays: pretty-print as JSON
     if (typeof v === "object" && v !== null) {
-      displayVal = `<span class="whitespace-pre-wrap text-slate-300">${escapeHtml(JSON.stringify(v, null, 2))}</span>`;
+      displayVal = `<span style="white-space:pre-wrap;color:var(--heading)">${escapeHtml(JSON.stringify(v, null, 2))}</span>`;
     } else {
-      // Strings: try to parse as JSON — if it succeeds, render formatted
       let parsed = v;
       if (typeof v === "string" && (v.trim().startsWith("{") || v.trim().startsWith("["))) {
         try { parsed = JSON.parse(v); } catch { /* keep as string */ }
       }
       if (typeof parsed === "object" && parsed !== null) {
-        displayVal = `<span class="whitespace-pre-wrap text-slate-300">${escapeHtml(JSON.stringify(parsed, null, 2))}</span>`;
+        displayVal = `<span style="white-space:pre-wrap;color:var(--heading)">${escapeHtml(JSON.stringify(parsed, null, 2))}</span>`;
       } else {
-        displayVal = `<span class="break-all">${escapeHtml(String(v))}</span>`;
+        displayVal = `<span style="word-break:break-all">${escapeHtml(String(v))}</span>`;
       }
     }
-    return `<tr class="border-b border-slate-800/60 last:border-0">
-      <td class="px-3 py-1.5 font-mono text-slate-500 whitespace-nowrap w-[160px] align-top">${escapeHtml(k)}</td>
-      <td class="px-3 py-1.5 font-mono">${displayVal}</td>
+    return `<tr style="border-bottom:1px solid rgba(74,69,79,.3)">
+      <td style="padding:6px 12px;font-family:monospace;color:var(--body-subtle);white-space:nowrap;width:160px;vertical-align:top">${escapeHtml(k)}</td>
+      <td style="padding:6px 12px;font-family:monospace;color:var(--heading)">${displayVal}</td>
     </tr>`;
   }).join("");
 }
 
 function levelBadgeHtml(level) {
   switch (level) {
-    case "error": return '<span class="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase bg-red-950 text-red-400 border border-red-800">ERR</span>';
-    case "info":  return '<span class="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase bg-blue-950 text-blue-400 border border-blue-800">INFO</span>';
-    default:      return '<span class="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase bg-slate-800 text-slate-500 border border-slate-700">DBG</span>';
+    case "error": return '<span class="badge badge-error">ERR</span>';
+    case "info":  return '<span class="badge badge-info">INFO</span>';
+    default:      return '<span class="badge badge-debug">DBG</span>';
   }
 }
 
@@ -283,41 +314,40 @@ function createRowPair(log) {
   const summary   = buildSummary(log.fields);
   const key       = makeLogKey(log);
 
-  // Main row
   const tr = document.createElement("tr");
-  tr.className = `log-row border-b border-slate-800/40${hasFields ? " cursor-pointer hover:bg-slate-800/20" : ""}`;
-  tr.dataset.level    = level;
-  tr.dataset.search   = (log.message + " " + JSON.stringify(log.fields || {})).toLowerCase();
-  tr.dataset.expanded = "false";
-  tr.dataset.msgkey   = key;
+  tr.className = `log-row${hasFields ? " cursor-pointer" : ""}`;
+  tr.dataset.level     = level;
+  tr.dataset.search    = (log.message + " " + JSON.stringify(log.fields || {})).toLowerCase();
+  tr.dataset.expanded  = "false";
+  tr.dataset.msgkey    = key;
   tr.dataset.hasFields = String(hasFields);
 
   tr.innerHTML = `
-    <td class="px-2 py-2.5 text-slate-600 select-none w-5">
-      ${hasFields ? `<svg class="expand-icon w-3 h-3 transition-transform" viewBox="0 0 12 12" fill="none"
-          stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <td style="padding:8px;color:var(--body-subtle);user-select:none;width:20px">
+      ${hasFields ? `<svg class="expand-icon" width="12" height="12" viewBox="0 0 12 12" fill="none"
+          stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+          style="transition:transform 200ms">
         <path d="M4 2 L8 6 L4 10"/></svg>` : ""}
     </td>
-    <td class="px-3 py-2.5 font-mono text-slate-500 whitespace-nowrap align-top">${escapeHtml(log.time.slice(11))}</td>
-    <td class="px-3 py-2.5 whitespace-nowrap align-top">${levelBadgeHtml(level)}</td>
-    <td class="px-3 py-2.5 text-slate-200 align-top max-w-[240px]"><span class="break-words">${escapeHtml(log.message)}</span></td>
-    <td class="px-3 py-2.5 text-slate-400 align-top">${escapeHtml(summary)}</td>`;
+    <td style="padding:8px 12px;font-family:monospace;color:var(--body-subtle);white-space:nowrap;vertical-align:top">${escapeHtml(log.time.slice(11))}</td>
+    <td style="padding:8px 12px;white-space:nowrap;vertical-align:top">${levelBadgeHtml(level)}</td>
+    <td style="padding:8px 12px;color:var(--heading);vertical-align:top;max-width:260px"><span style="word-break:break-word">${escapeHtml(log.message)}</span></td>
+    <td style="padding:8px 12px;color:var(--body-subtle);vertical-align:top">${escapeHtml(summary)}</td>`;
 
   if (hasFields) {
     tr.addEventListener("click", () => toggleRow(tr));
   }
 
-  // Detail row (hidden by default)
   let detailTr = null;
   if (hasFields) {
     detailTr = document.createElement("tr");
-    detailTr.className = "log-detail-row hidden border-b border-slate-800";
+    detailTr.className = "log-detail-row hidden";
     detailTr.dataset.level = level;
     detailTr.innerHTML = `
       <td></td>
-      <td colspan="4" class="px-3 pb-3 pt-1">
-        <div class="rounded border border-slate-700 bg-slate-950 overflow-hidden">
-          <table class="w-full text-xs"><tbody>${buildDetailRows(log.fields)}</tbody></table>
+      <td colspan="4" style="padding:4px 12px 12px">
+        <div style="border-radius:8px;border:1px solid var(--border-default-medium);background:var(--neutral-primary);overflow:hidden">
+          <table style="width:100%;font-size:11px"><tbody>${buildDetailRows(log.fields)}</tbody></table>
         </div>
       </td>`;
   }
@@ -333,21 +363,17 @@ function renderLogs(logs) {
 
   if (!logs.length) {
     if (!knownLogKeys.size && !placeholder) {
-      tbody.innerHTML = '<tr id="log-empty-placeholder"><td colspan="5" class="px-3 py-8 text-center text-slate-500">No logs yet.</td></tr>';
+      tbody.innerHTML = '<tr id="log-empty-placeholder"><td colspan="5" style="padding:40px 12px;text-align:center;color:var(--body-subtle)">No logs yet.</td></tr>';
     }
     updateLogCount(0);
     return;
   }
 
-  // Remove placeholder if data arrives
   placeholder?.remove();
 
-  // Only process logs we haven't seen yet (API returns newest-first)
   const newLogs = logs.filter((log) => !knownLogKeys.has(makeLogKey(log)));
 
   if (newLogs.length > 0) {
-    // Build a fragment with all new rows, then insert before the oldest existing row.
-    // This keeps the table newest-first without touching any existing row.
     const fragment = document.createDocumentFragment();
     newLogs.forEach((log) => {
       const { tr, detailTr } = createRowPair(log);
@@ -364,7 +390,6 @@ function renderLogs(logs) {
     }
   }
 
-  // Trim rows that have aged off the server's 500-entry deque
   const serverKeys = new Set(logs.map(makeLogKey));
   [...tbody.querySelectorAll(".log-row")].forEach((row) => {
     if (!serverKeys.has(row.dataset.msgkey)) {
@@ -384,7 +409,8 @@ function toggleRow(row) {
   const isOpen = row.dataset.expanded === "true";
   row.dataset.expanded = isOpen ? "false" : "true";
   detailRow.classList.toggle("hidden", isOpen);
-  row.querySelector(".expand-icon")?.classList.toggle("rotate-90", !isOpen);
+  const icon = row.querySelector(".expand-icon");
+  if (icon) icon.style.transform = isOpen ? "" : "rotate(90deg)";
 }
 
 // ─── Filtering ─────────────────────────────────────────────────────────────
@@ -416,7 +442,7 @@ function applyFilters() {
 
   const bar = document.getElementById("log-show-more");
   const cnt = document.getElementById("log-hidden-count");
-  if (bar) bar.classList.toggle("hidden", capped === 0);
+  if (bar) bar.style.display = capped === 0 ? "none" : "";
   if (cnt) cnt.textContent = capped;
 
   updateLogCount(visible);
@@ -459,6 +485,10 @@ async function refreshLogs() {
   if (line) {
     line.textContent = `${(status.connection_type || "mqtt").toUpperCase()}: ${Boolean(status.connected)} | Sent: ${status.sent || 0} | Error: ${status.last_error || "none"}`;
   }
+  const dot = document.getElementById("status-dot");
+  if (dot) {
+    dot.className = "status-dot" + (status.connected ? "" : " offline");
+  }
 }
 
 // ─── FCM test ──────────────────────────────────────────────────────────────
@@ -472,7 +502,7 @@ async function sendFcmTest(mode) {
   if (mode === "all" && !entries.length)  { showFcmTestStatus("No device tokens configured"); return; }
   if (mode !== "all" && !selectedToken)   { showFcmTestStatus("Select a device row first, or use Test all devices"); return; }
 
-  showFcmTestStatus("Sending test notification...");
+  showFcmTestStatus("Sending test notification…");
   try {
     const body = mode === "all"
       ? { all: true, tokens: entries.map((e) => e.token).filter(Boolean) }
@@ -487,7 +517,7 @@ async function sendFcmTest(mode) {
 
 function showFcmTestStatus(message) {
   const el = document.getElementById("fcm-test-status");
-  if (el) { el.textContent = message; el.classList.remove("hidden"); }
+  if (el) { el.textContent = message; el.style.display = "inline"; }
 }
 
 // ─── Saved test payload ────────────────────────────────────────────────────
@@ -510,7 +540,7 @@ async function sendTestPayload() {
   if (!input) return;
   let payload;
   try { payload = JSON.parse(input.value); } catch (err) { showTestPayloadStatus(`JSON parse error: ${err.message}`, true); return; }
-  showTestPayloadStatus("Sending...");
+  showTestPayloadStatus("Sending…");
   try {
     const response = await fetch("/api/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const result   = await response.json();
@@ -524,8 +554,8 @@ function showTestPayloadStatus(message, isError = false) {
   const el = document.getElementById("test-payload-status");
   if (!el) return;
   el.textContent = message;
-  el.classList.remove("hidden", "text-red-400", "text-blue-200");
-  el.classList.add(isError ? "text-red-400" : "text-blue-200");
+  el.style.display = "inline";
+  el.style.color = isError ? "var(--fg-danger)" : "var(--fg-brand)";
 }
 
 // ─── Log polling ───────────────────────────────────────────────────────────
@@ -550,8 +580,8 @@ async function copyText(text) {
 function showCopyStatus(message) {
   const el = document.getElementById("copy-log-status");
   if (!el) return;
-  el.textContent = message; el.classList.remove("hidden");
-  setTimeout(() => el.classList.add("hidden"), 2000);
+  el.textContent = message; el.style.display = "inline";
+  setTimeout(() => { el.style.display = "none"; }, 2000);
 }
 
 // ─── Init ──────────────────────────────────────────────────────────────────
@@ -561,10 +591,10 @@ document.querySelectorAll(".token-field").forEach(setupTokenField);
 document.querySelectorAll(".kv-field").forEach(setupKvField);
 setupSeverityChecks();
 setupTabs();
+setupConfigSidebar();
 setupExclusiveGroup("connection-type", "data-connection-type");
 setupExclusiveGroup("delivery-method", "data-delivery-method");
 
-// Wire click handlers on server-rendered rows (already in the DOM on load)
 document.querySelectorAll("#log-tbody .log-row[data-has-fields='true']").forEach((row) => {
   row.addEventListener("click", () => toggleRow(row));
 });
@@ -590,7 +620,7 @@ document.getElementById("reset-test-payload")?.addEventListener("click", () => {
   const input = document.getElementById("test-payload-input");
   if (input) input.value = SAMPLE_PAYLOAD;
   const status = document.getElementById("test-payload-status");
-  if (status) status.classList.add("hidden");
+  if (status) status.style.display = "none";
 });
 document.getElementById("log-refresh-interval")?.addEventListener("change", (e) => {
   logRefreshMs = Number(e.target.value) || 0; scheduleLogRefresh();

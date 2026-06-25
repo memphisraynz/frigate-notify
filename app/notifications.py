@@ -61,29 +61,51 @@ def send_fcm_v1(service_account_json: str, token: str, payload: dict[str, str]) 
         "message": {
             "token": token,
             "data": {
-                # Primary Content
-                "title": payload.get("title"),
-                "message": payload.get("message"),
-                "image": payload.get("image") or payload.get("thumbnail"),
+                # Primary content
+                "title":                    payload.get("title"),
+                "message":                  payload.get("message"),
+                "image":                    payload.get("image") or payload.get("thumbnail"),
 
-                # Notification Click Action
-                "url": payload.get("url") or payload.get("click_action"),
+                # Notification click action
+                "url":                      payload.get("url") or payload.get("click_action"),
 
-                # Action Buttons
-                "button_1": payload.get("button_1"),
-                "url_1": payload.get("url_1"),
-                "button_2": payload.get("button_2"),
-                "url_2": payload.get("url_2"),
-                "button_3": payload.get("button_3"),
-                "url_3": payload.get("url_3"),
+                # Action buttons
+                "button_1":                 payload.get("button_1"),
+                "url_1":                    payload.get("url_1"),
+                "button_2":                 payload.get("button_2"),
+                "url_2":                    payload.get("url_2"),
+                "button_3":                 payload.get("button_3"),
+                "url_3":                    payload.get("url_3"),
 
-                # Metadata
-                "group": payload.get("group"),
-                "tag": payload.get("tag"),
-                "event_id": payload.get("event_id"),
-                "camera": payload.get("camera"),
-                "review_id": payload.get("review_id"),
-                "alert_once": payload.get("alert_once"),
+                # Media
+                "photo":                    payload.get("photo"),
+                "gif":                      payload.get("gif"),
+                "preview":                  payload.get("preview"),
+                "clip":                     payload.get("clip"),
+                "clip_url":                 payload.get("clip_url"),
+                "stream_url":               payload.get("stream_url"),
+                "expanded_thumbnail":       payload.get("expanded_thumbnail"),
+                "expanded_thumbnail_type":  payload.get("expanded_thumbnail_type"),
+
+                # Presentation
+                "subtitle":                 payload.get("subtitle"),
+                "subject":                  payload.get("subject"),
+                "color":                    payload.get("color"),
+                "channel":                  payload.get("channel"),
+                "sticky":                   payload.get("sticky"),
+                "car_ui":                   payload.get("car_ui"),
+
+                # Metadata / behaviour
+                "group":                    payload.get("group"),
+                "tag":                      payload.get("tag"),
+                "id":                       payload.get("id"),
+                "event_id":                 payload.get("event_id"),
+                "camera":                   payload.get("camera"),
+                "review_id":                payload.get("review_id"),
+                "status":                   payload.get("status"),
+                "alert_once":               payload.get("alert_once"),
+                "sent_at":                  payload.get("sent_at"),
+                "timestamp":                payload.get("timestamp"),
             },
             "android": {
                 "priority": "high",
