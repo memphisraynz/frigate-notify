@@ -1,4 +1,6 @@
 import json
+import logging
+import logging.handlers
 import os
 import re
 import threading
@@ -21,6 +23,7 @@ from paho.mqtt import client as mqtt
 
 CONFIG_PATH = Path(os.environ.get("FRIGATE_AUTOMATION_CONFIG", "/data/config.json"))
 SAVED_PAYLOADS_PATH = CONFIG_PATH.parent / "saved_payloads.json"
+LOG_DIR = CONFIG_PATH.parent / "logs"
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin")
 LIVE_LOGS: deque[dict[str, Any]] = deque(maxlen=500)
 
@@ -149,15 +152,81 @@ template_env.filters["timestamp_custom"] = lambda value, fmt: datetime.fromtimes
 template_env.globals["iif"] = lambda condition, true_value, false_value="": true_value if condition else false_value
 
 
+# ─── File-based logging ────────────────────────────────────────────────────
+
+def _setup_file_logger() -> logging.Logger:
+    """Set up a daily-rotating file logger that writes to /data/logs/.
+
+    Keeps 7 days of log files (today + 6 backups).  Each file is named
+    frigate-notify.log and rotates at midnight, with suffixes like
+    frigate-notify.log.2025-06-24.
+    """
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    logger = logging.getLogger("frigate_notify")
+    logger.setLevel(logging.DEBUG)
+    if not logger.handlers:
+        handler = logging.handlers.TimedRotatingFileHandler(
+            filename=str(LOG_DIR / "frigate-notify.log"),
+            when="midnight",
+            interval=1,
+            backupCount=6,  # keep today + 6 previous days = 7 days total
+            encoding="utf-8",
+            utc=False,
+        )
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s | %(levelname)-5s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+        )
+        logger.addHandler(handler)
+    return logger
+
+
+_file_logger = _setup_file_logger()
+
+
 def add_log(level: str, message: str, **fields: Any) -> None:
-    LIVE_LOGS.appendleft(
-        {
-            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "level": level,
-            "message": message,
-            "fields": fields,
-        },
-    )
+    """Append a log entry to the in-memory deque and to the rotating file.
+
+    Field values that are JSON strings are automatically parsed back to
+    objects so the UI can display them formatted rather than as a flat string.
+    """
+    # Parse any field that is a JSON-encoded string back to its native type
+    # so the frontend receives a real dict/list instead of a flat string.
+    parsed_fields: dict[str, Any] = {}
+    for k, v in fields.items():
+        if isinstance(v, str) and v.strip().startswith(("{", "[")):
+            try:
+                parsed_fields[k] = json.loads(v)
+                continue
+            except (json.JSONDecodeError, ValueError):
+                pass
+        parsed_fields[k] = v
+
+    entry: dict[str, Any] = {
+        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "level": level,
+        "message": message,
+        "fields": parsed_fields,
+    }
+    LIVE_LOGS.appendleft(entry)
+
+    # Also persist to the rotating log file
+    log_method = getattr(_file_logger, level.lower(), _file_logger.info)
+    if parsed_fields:
+        log_method("%s | %s", message, json.dumps(parsed_fields, default=str))
+    else:
+        log_method("%s", message)
+
+
+# ─── Helpers ────────────────────────────────────────────────────────────────
+
+def parse_json_if_string(value: Any) -> Any:
+    """If value is a JSON-encoded string, parse and return it; otherwise return as-is."""
+    if isinstance(value, str) and value.strip().startswith(("{", "[")):
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, ValueError):
+            pass
+    return value
 
 
 def compact_json(value: Any, limit: int = 1200) -> str:
@@ -426,55 +495,45 @@ def send_fcm_v1(service_account_json: str, token: str, payload: dict[str, str]) 
         if not credentials.valid:
             credentials.refresh(google.auth.transport.requests.Request())
         access_token = credentials.token
-    
+
     url = f"https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
-    
-    is_sticky = str(payload.get("sticky", "false")).lower() == "true"
 
     fcm_message = {
         "message": {
             "token": token,
-            # NO "notification" block here. This ensures onMessageReceived handles it.
             "data": {
-                # Primary Content
                 "title": payload.get("title"),
                 "message": payload.get("message"),
                 "image": payload.get("image") or payload.get("thumbnail"),
                 "url": payload.get("url") or payload.get("click_action"),
-                
-                # Notification Click Action
                 "click_action": payload.get("click_action"),
-                
-                # Action Buttons
                 "button_1": payload.get("button_1"),
                 "url_1": payload.get("url_1"),
                 "button_2": payload.get("button_2"),
                 "url_2": payload.get("url_2"),
                 "button_3": payload.get("button_3"),
                 "url_3": payload.get("url_3"),
-
-                # Metadata (needed for event tracking/deep linking)
                 "tag": payload.get("tag"),
                 "event_id": payload.get("event_id"),
                 "camera": payload.get("camera"),
-                "review_id": payload.get("review_id")
+                "review_id": payload.get("review_id"),
             },
             "android": {
                 "priority": "high",
-                "ttl": "0s"
+                "ttl": "0s",
             },
             "apns": {
                 "payload": {
                     "aps": {
                         "alert": {
                             "title": payload.get("title"),
-                            "body": payload.get("message")
+                            "body": payload.get("message"),
                         },
                         "mutable-content": 1,
-                        "category": "frigate_alert"
+                        "category": "frigate_alert",
                     }
                 }
-            }
+            },
         }
     }
 
@@ -527,7 +586,7 @@ class AutomationWorker:
         self.lock = threading.Lock()
         self.events_lock = threading.Lock()
         self.running = False
-        self.last_triggered: dict[str, float] = {}  # per-camera cooldown tracking
+        self.last_triggered: dict[str, float] = {}
         self.events: dict[str, dict[str, Any]] = {}
         self.last_error = ""
         self.sent = 0
@@ -659,17 +718,21 @@ class AutomationWorker:
                 add_log("error", "WebSocket payload decode failed", error=str(exc))
                 return
             if not isinstance(payload, dict):
-                add_log("error", "WebSocket payload was not an object", payload=compact_json(raw_payload))
+                add_log("error", "WebSocket payload was not an object", payload=raw_payload)
                 return
-            add_log("debug", "WebSocket review event received", payload=compact_json(payload))
+            # Store the parsed dict directly — add_log will keep it as an object
+            # so the UI can display it as formatted JSON
+            add_log("debug", "WebSocket review event received", payload=payload)
             self.handle_payload(payload)
 
         def on_error(_ws: websocket.WebSocketApp, error: Exception) -> None:
             self.last_error = str(error)
             add_log("error", "WebSocket error", error=str(error))
 
-        def on_close(_ws: websocket.WebSocketApp, status_code: int | None, message: str | None) -> None:
-            add_log("info", "WebSocket closed", code=status_code, message=message)
+        def on_close(_ws: websocket.WebSocketApp, status_code: int | None, close_msg: str | None) -> None:
+            # NOTE: parameter renamed from 'message' to 'close_msg' to avoid shadowing
+            # add_log's positional 'message' argument, which caused a TypeError.
+            add_log("info", "WebSocket closed", code=status_code, close_message=close_msg)
 
         app_ws = websocket.WebSocketApp(
             url,
@@ -696,7 +759,8 @@ class AutomationWorker:
     def _on_message(self, _client: mqtt.Client, _userdata: Any, message: mqtt.MQTTMessage) -> None:
         try:
             payload = json.loads(message.payload.decode("utf-8"))
-            add_log("debug", "MQTT message received", topic=message.topic, payload=compact_json(payload))
+            # Store the parsed dict directly so the UI can display it formatted
+            add_log("debug", "MQTT message received", topic=message.topic, payload=payload)
             self.handle_payload(payload)
         except Exception as exc:
             self.last_error = str(exc)
@@ -709,25 +773,21 @@ class AutomationWorker:
         if event_type not in {"new", "update", "end", "genai"}:
             add_log("debug", "Event ignored: unsupported type", type=event_type, review_id=context["review_id"])
             return
-            
-        # --- MODIFICATION: Skip filters if this is an explicit test execution ---
+
         if not is_test and not self.filters_pass(config, context):
             return
 
         event_id = context["id"]
         with self.events_lock:
             previous = self.events.get(event_id, {})
-            # Mark as seen immediately to prevent a second concurrent message
-            # for the same review_id from also seeing an empty previous state.
             if not previous and event_type in {"new", "update", "genai"}:
-                self.events[event_id] = {}  # placeholder; filled in after send
+                self.events[event_id] = {}
         changes = self.changed_fields(previous, context)
         first_matching_event = not previous and event_type in {"new", "update", "genai"}
-        
+
         if not is_test and not self.cooldown_pass(config, context, first_matching_event):
             return
-            
-        # --- MODIFICATION: Force the notification to send regardless of field changes ---
+
         should_send = first_matching_event or bool(changes) or is_test
         should_send = should_send or (event_type == "end" and config["notifications"].get("final_update"))
         if not should_send:
@@ -746,7 +806,7 @@ class AutomationWorker:
         notification_context = {**context, "type": "new"} if first_matching_event and event_type == "update" else context
         notification = self.build_notification(config, notification_context, silent=not first_matching_event)
         self.send_notification(config, notification)
-        
+
         with self.events_lock:
             self.events[event_id] = {
                 "zones": context["after_zones"],
@@ -759,7 +819,6 @@ class AutomationWorker:
             if first_matching_event:
                 self.last_triggered[context["camera"]] = time.time()
         add_log("info", "Event processed", review_id=event_id, type=event_type, changes=list(changes), first_matching_event=first_matching_event)
-
 
     def filters_pass(self, config: dict[str, Any], context: dict[str, Any]) -> bool:
         filters = config["filters"]
@@ -787,12 +846,7 @@ class AutomationWorker:
         add_log("debug", "All filters passed", review_id=context["review_id"], camera=context["camera"], severity=context["severity"], label=context["label"])
         return True
 
-    def cooldown_pass(
-        self,
-        config: dict[str, Any],
-        context: dict[str, Any],
-        first_matching_event: bool,
-    ) -> bool:
+    def cooldown_pass(self, config: dict[str, Any], context: dict[str, Any], first_matching_event: bool) -> bool:
         if not first_matching_event:
             return True
         cooldown = number_value(config["timers"].get("cooldown"), 30)
@@ -884,14 +938,16 @@ class AutomationWorker:
             add_log("info", "Notification skipped: notifications disabled", review_id=payload.get("review_id"))
             self.send_telegram(config, payload)
             return
-        
+
         tokens = config["notifications"].get("tokens") or []
         delivery_method = (config["notifications"].get("delivery_method") or "fcm").lower()
-        
+
+        # Store payload as a dict — add_log keeps objects as-is so the UI
+        # renders it as formatted JSON rather than a flat string.
         add_log(
-            "info", 
-            f"Compiled Notification Payload ({delivery_method})", 
-            payload_details=json.dumps(payload, indent=2)
+            "info",
+            f"Compiled Notification Payload ({delivery_method})",
+            payload_details=payload,
         )
 
         add_log("debug", "Sending notification", method=delivery_method, token_count=len(tokens), review_id=payload.get("review_id"))
@@ -907,11 +963,10 @@ class AutomationWorker:
             except Exception as exc:
                 self.last_error = str(exc)
                 add_log("error", "Notification send failed", method=delivery_method, error=str(exc), review_id=payload.get("review_id"), device=name or token[:8] + "...")
-        
+
         self.send_telegram(config, payload)
 
     def send_telegram(self, config: dict[str, Any], payload: dict[str, str]) -> None:
-        # Placeholder/Original implementation tracking method for worker execution compatibility
         pass
 
 
@@ -983,7 +1038,7 @@ def logs():
 @login_required
 def test_notification():
     envelope = request.get_json(force=True)
-    
+
     if isinstance(envelope, dict) and "topic" in envelope and "payload" in envelope:
         if envelope.get("topic") != "reviews":
             return jsonify({"ok": True, "message": "Ignored non-review topic", "status": worker.status()})
@@ -998,9 +1053,7 @@ def test_notification():
     if not isinstance(payload, dict):
         return jsonify({"error": "Payload must resolve to a valid JSON object"}), 400
 
-    add_log("debug", "WebSocket review event received (via Test API)", payload=compact_json(payload))
-    
-    # Pass is_test=True here
+    add_log("debug", "WebSocket review event received (via Test API)", payload=payload)
     worker.handle_payload(payload, is_test=True)
     return jsonify({"ok": True, "status": worker.status()})
 
@@ -1008,16 +1061,10 @@ def test_notification():
 @app.route("/api/test-fcm", methods=["POST"])
 @login_required
 def test_fcm():
-    data = request.get_json(silent=True) or {}
-    config = load_config()
-    
     raw_websocket_message = {
         "topic": "reviews",
         "payload": "{\"type\": \"new\", \"before\": {\"id\": \"1782340990.237592-gu88rp\", \"camera\": \"front_door\", \"start_time\": 1782340990.237592, \"end_time\": null, \"severity\": \"alert\", \"thumb_path\": \"/media/frigate/clips/review/thumb-front_door-1782340990.237592-gu88rp.webp\", \"data\": {\"detections\": [\"1782340990.039527-44hvr0\"], \"objects\": [\"person\"], \"verified_objects\": [], \"sub_labels\": [], \"zones\": [], \"audio\": [], \"thumb_time\": 1782340990.525862, \"metadata\": null}}, \"after\": {\"id\": \"1782340990.237592-gu88rp\", \"camera\": \"front_door\", \"start_time\": 1782340990.237592, \"end_time\": null, \"severity\": \"alert\", \"thumb_path\": \"/media/frigate/clips/review/thumb-front_door-1782340990.237592-gu88rp.webp\", \"data\": {\"detections\": [\"1782340990.039527-44hvr0\"], \"objects\": [\"person\"], \"verified_objects\": [], \"sub_labels\": [], \"zones\": [], \"audio\": [], \"thumb_time\": 1782340990.525862, \"metadata\": null}}}"
     }
-
-    if raw_websocket_message.get("topic") != "reviews":
-        return jsonify({"error": "Invalid topic"}), 400
 
     inner_payload_string = raw_websocket_message.get("payload")
     try:
@@ -1026,10 +1073,9 @@ def test_fcm():
         add_log("error", "Emulated WebSocket payload decode failed", error=str(exc))
         return jsonify({"error": f"JSON Decode Error: {exc}"}), 400
 
-    add_log("info", "🚀 Emulating live WebSocket event pipeline from Web UI button", payload=compact_json(payload))
+    add_log("info", "Emulating live WebSocket event pipeline from Web UI button", payload=payload)
 
     try:
-        # Pass is_test=True here
         worker.handle_payload(payload, is_test=True)
     except Exception as exc:
         add_log("error", "Pipeline execution failed during emulation", error=str(exc))
@@ -1083,7 +1129,7 @@ def form_to_config(config: dict[str, Any], form: dict[str, str]) -> dict[str, An
                 candidate = json.loads(value) if (value or "").strip() else []
                 parsed = candidate if isinstance(candidate, list) else target.get(key, [])
             except json.JSONDecodeError as exc:
-                add_log("error", "Failed to parse buttons JSON from form; keeping previous value", field=dotted, error=str(exc))
+                add_log("error", "Failed to parse JSON from form; keeping previous value", field=dotted, error=str(exc))
                 parsed = target.get(key, [])
         elif dotted in bool_fields:
             parsed = bool_value(value)

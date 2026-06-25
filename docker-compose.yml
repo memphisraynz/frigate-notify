@@ -1,7 +1,7 @@
 services:
-  frigate-automation:
+  frigate-notify:
     build: .
-    container_name: frigate-automation
+    container_name: frigate-notify
     restart: unless-stopped
     ports:
       - "5100:5100"

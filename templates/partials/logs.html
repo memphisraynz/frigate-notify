@@ -1,44 +1,156 @@
 <div class="rounded-lg border border-slate-800 bg-slate-900">
-  <div class="flex flex-col gap-4 border-b border-slate-800 p-4">
-    <div>
-      <h2 class="text-lg font-semibold">Live Logs</h2>
-      <p class="text-sm text-slate-400">Recent MQTT, filter, and notification decisions.</p>
+
+  {# ── Toolbar ── #}
+  <div class="flex flex-wrap items-center gap-2 border-b border-slate-800 px-3 py-2">
+    <h2 class="text-sm font-semibold text-slate-100 mr-1">Live Logs</h2>
+
+    <div class="relative flex-1 min-w-[160px]">
+      <svg class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="6.5" cy="6.5" r="4.5"/><path d="M10.5 10.5 L14 14" stroke-linecap="round"/>
+      </svg>
+      <input id="log-search" type="search" placeholder="Search…"
+             class="w-full rounded border border-slate-700 bg-slate-950 pl-8 pr-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-blue-500">
     </div>
-    <div class="grid gap-2 sm:grid-cols-[1fr_auto_auto_auto_auto] sm:items-center">
-      <label class="text-sm text-slate-300">
-        Refresh time
-        <select id="log-refresh-interval" class="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
-          <option value="1000">1s</option>
-          <option value="3000" selected>3s</option>
-          <option value="5000">5s</option>
-          <option value="10000">10s</option>
-        </select>
-      </label>
-      <button id="toggle-log-refresh" type="button" class="rounded-md border border-slate-700 px-3 py-2 text-sm hover:bg-slate-800">Pause</button>
-      <button id="refresh-logs" type="button" class="rounded-md border border-slate-700 px-3 py-2 text-sm hover:bg-slate-800">Refresh</button>
-      <button id="copy-selected-logs" type="button" class="rounded-md border border-slate-700 px-3 py-2 text-sm hover:bg-slate-800">Copy selected</button>
-      <button id="copy-visible-logs" type="button" class="rounded-md border border-slate-700 px-3 py-2 text-sm hover:bg-slate-800">Copy visible</button>
-    </div>
-    <p id="copy-log-status" class="hidden text-sm text-blue-200"></p>
+
+    <select id="log-level-filter" class="rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-300">
+      <option value="all">All levels</option>
+      <option value="error">Error</option>
+      <option value="info">Info</option>
+      <option value="debug">Debug</option>
+    </select>
+
+    <select id="log-refresh-interval" class="rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-300">
+      <option value="1000">1s</option>
+      <option value="3000" selected>3s</option>
+      <option value="5000">5s</option>
+      <option value="10000">10s</option>
+      <option value="0">Manual</option>
+    </select>
+
+    <button id="toggle-log-refresh" type="button"
+            class="rounded border border-slate-700 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800">Pause</button>
+    <button id="refresh-logs" type="button"
+            class="rounded border border-slate-700 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800">↺</button>
+    <button id="copy-visible-logs" type="button"
+            class="rounded border border-slate-700 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800">Copy</button>
+
+    <span id="log-count" class="ml-auto text-xs text-slate-500"></span>
+    <p id="copy-log-status" class="hidden text-xs text-blue-300"></p>
   </div>
-  <div id="log-list" class="divide-y divide-slate-800">
-    {% for log in logs %}
-      <article class="log-entry p-4" data-log-id="{{ log.time }}|{{ log.level }}|{{ log.message }}|{{ loop.index0 }}" data-log-text="{{ (log.time ~ ' | ' ~ log.level ~ ' | ' ~ log.message ~ '\n' ~ (log.fields | tojson(indent=2))) | e }}">
-        <div class="flex gap-3">
-          <input type="checkbox" class="log-select mt-1 h-4 w-4 rounded border-slate-700 bg-slate-950">
-          <div class="min-w-0 flex-1">
-            <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <p class="font-medium text-slate-100">{{ log.message }}</p>
-              <p class="text-xs text-slate-500">{{ log.time }} | {{ log.level }}</p>
-            </div>
-            {% if log.fields %}
-              <pre class="mt-2 overflow-x-auto rounded-md bg-slate-950 p-3 text-xs text-slate-300">{{ log.fields }}</pre>
-            {% endif %}
-          </div>
-        </div>
-      </article>
-    {% else %}
-      <p class="p-4 text-sm text-slate-400">No logs yet.</p>
-    {% endfor %}
+
+  {# ── Table ── #}
+  <div class="overflow-x-auto">
+    <table class="w-full border-collapse text-xs">
+      <thead>
+        <tr class="border-b border-slate-800 text-left text-[10px] text-slate-500 uppercase tracking-wider">
+          <th class="w-5 px-2 py-2"></th>
+          <th class="px-3 py-2 font-medium whitespace-nowrap">Time</th>
+          <th class="px-3 py-2 font-medium w-[56px]">Level</th>
+          <th class="px-3 py-2 font-medium">Message</th>
+          <th class="px-3 py-2 font-medium">Details</th>
+        </tr>
+      </thead>
+      <tbody id="log-tbody">
+        {% for log in logs %}
+          {% set lvl = log.level | lower %}
+          {% set fields_json = log.fields | tojson(indent=2) %}
+          {% set has_fields = log.fields and (log.fields | length > 0) %}
+
+          {# Build a short summary string of the most useful fields #}
+          {% set summary_parts = [] %}
+          {% if log.fields.get('camera') %}{% set _ = summary_parts.append('cam: ' ~ log.fields.camera) %}{% endif %}
+          {% if log.fields.get('label') %}{% set _ = summary_parts.append('label: ' ~ log.fields.label) %}{% endif %}
+          {% if log.fields.get('review_id') %}{% set _ = summary_parts.append('id: ' ~ log.fields.review_id[:12]) %}{% endif %}
+          {% if log.fields.get('error') %}{% set _ = summary_parts.append('err: ' ~ log.fields.error[:60]) %}{% endif %}
+          {% if log.fields.get('device') %}{% set _ = summary_parts.append('device: ' ~ log.fields.device) %}{% endif %}
+          {% if log.fields.get('method') %}{% set _ = summary_parts.append('method: ' ~ log.fields.method) %}{% endif %}
+          {% if log.fields.get('status_code') %}{% set _ = summary_parts.append('HTTP ' ~ log.fields.status_code) %}{% endif %}
+          {% if log.fields.get('topic') %}{% set _ = summary_parts.append('topic: ' ~ log.fields.topic) %}{% endif %}
+          {% if log.fields.get('host') %}{% set _ = summary_parts.append('host: ' ~ log.fields.host) %}{% endif %}
+          {% if log.fields.get('url') %}{% set _ = summary_parts.append('url: ' ~ log.fields.url[:50]) %}{% endif %}
+
+          <tr class="log-row border-b border-slate-800/40 hover:bg-slate-800/20 cursor-pointer"
+              data-level="{{ lvl }}"
+              data-search="{{ (log.message ~ ' ' ~ fields_json) | lower | e }}"
+              data-expanded="false">
+            {# Expand chevron #}
+            <td class="px-2 py-2.5 text-slate-600 select-none">
+              {% if has_fields %}
+                <svg class="expand-icon w-3 h-3 transition-transform" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 2 L8 6 L4 10"/>
+                </svg>
+              {% endif %}
+            </td>
+            <td class="px-3 py-2.5 font-mono text-slate-500 whitespace-nowrap align-top">{{ log.time[11:] }}</td>
+            <td class="px-3 py-2.5 whitespace-nowrap align-top">
+              {% if lvl == 'error' %}
+                <span class="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase bg-red-950 text-red-400 border border-red-800">ERR</span>
+              {% elif lvl == 'info' %}
+                <span class="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase bg-blue-950 text-blue-400 border border-blue-800">INFO</span>
+              {% else %}
+                <span class="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase bg-slate-800 text-slate-500 border border-slate-700">DBG</span>
+              {% endif %}
+            </td>
+            <td class="px-3 py-2.5 text-slate-200 align-top max-w-[280px]">
+              <span class="break-words">{{ log.message }}</span>
+            </td>
+            <td class="px-3 py-2.5 text-slate-400 align-top">
+              {% if summary_parts %}
+                <span class="summary-preview">{{ summary_parts | join(' · ') }}</span>
+              {% elif has_fields and not summary_parts %}
+                {# Fallback: show first key=value pair #}
+                {% for k, v in log.fields.items() | list %}
+                  {% if loop.first %}
+                    <span class="summary-preview text-slate-500">{{ k }}: {{ v | string | truncate(60, true, '…') }}</span>
+                  {% endif %}
+                {% endfor %}
+              {% endif %}
+            </td>
+          </tr>
+
+          {# Expanded detail row #}
+          {% if has_fields %}
+            <tr class="log-detail-row hidden border-b border-slate-800"
+                data-level="{{ lvl }}">
+              <td></td>
+              <td colspan="4" class="px-3 pb-3 pt-1">
+                <div class="rounded border border-slate-700 bg-slate-950 overflow-hidden">
+                  <table class="w-full text-xs">
+                    <tbody>
+                      {% for k, v in log.fields.items() %}
+                        <tr class="border-b border-slate-800/60 last:border-0">
+                          <td class="px-3 py-1.5 font-mono text-slate-500 whitespace-nowrap w-[160px] align-top select-all">{{ k }}</td>
+                          <td class="px-3 py-1.5 text-slate-300 break-all font-mono">
+                            {% if v is mapping or v is iterable and v is not string %}
+                              <span class="text-slate-200 whitespace-pre-wrap">{{ v | tojson(indent=2) }}</span>
+                            {% else %}
+                              {{ v | string }}
+                            {% endif %}
+                          </td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </td>
+            </tr>
+          {% endif %}
+
+        {% else %}
+          <tr id="log-empty-row">
+            <td colspan="5" class="px-3 py-8 text-center text-slate-500">No logs yet.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
+
+  {# Show more #}
+  <div id="log-show-more" class="hidden border-t border-slate-800 px-3 py-2 text-center">
+    <button type="button" id="log-show-more-btn"
+            class="text-xs text-blue-400 hover:text-blue-300">
+      Show <span id="log-hidden-count"></span> more rows
+    </button>
+  </div>
+
 </div>
