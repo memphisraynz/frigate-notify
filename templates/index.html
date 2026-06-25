@@ -18,9 +18,10 @@
       <a href="{{ url_for('logout') }}" class="inline-flex w-full justify-center rounded-md border border-slate-700 px-4 py-2 text-sm text-slate-100 hover:bg-slate-900 sm:w-auto">Logout</a>
     </header>
 
-    <nav class="mt-5 grid grid-cols-2 rounded-lg border border-slate-800 bg-slate-900 p-1 text-sm">
+    <nav class="mt-5 grid grid-cols-3 rounded-lg border border-slate-800 bg-slate-900 p-1 text-sm">
       <button type="button" class="tab-button rounded-md bg-blue-600 px-3 py-2 font-medium text-white" data-tab="config">Configuration</button>
       <button type="button" class="tab-button rounded-md px-3 py-2 font-medium text-slate-300" data-tab="logs">Live Logs</button>
+      <button type="button" class="tab-button rounded-md px-3 py-2 font-medium text-slate-300" data-tab="test">Test Payload</button>
     </nav>
 
     <section id="config-tab" class="tab-panel mt-5">
@@ -29,6 +30,10 @@
 
     <section id="logs-tab" class="tab-panel mt-5 hidden">
       {% include "partials/logs.html" %}
+    </section>
+
+    <section id="test-tab" class="tab-panel mt-5 hidden">
+      {% include "partials/test_payload.html" %}
     </section>
   </main>
   <script src="{{ url_for('static', filename='app.js') }}"></script>

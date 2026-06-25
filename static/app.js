@@ -14,6 +14,8 @@ document.querySelectorAll(".check-card").forEach((item) => {
   item.classList.add("inline-flex", "items-center", "gap-2", "rounded-md", "border", "border-slate-700", "bg-slate-950", "px-3", "py-2", "text-sm", "text-slate-200");
 });
 
+// ─── Chip fields (cameras, labels, zones, hours) ───────────────────────────
+
 function splitValues(value, separator = "default") {
   const normalized = value
     .replaceAll("\\r\\n", "\n")
@@ -31,7 +33,7 @@ function setupChipField(field) {
   const add = field.querySelector(".chip-add");
 
   function values() {
-    return splitValues(textarea.value, chipSeparator(field));
+    return splitValues(textarea.value, "default");
   }
 
   function save(items) {
@@ -43,25 +45,13 @@ function setupChipField(field) {
     values().forEach((item) => {
       const chip = document.createElement("span");
       chip.className = "chip inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-slate-100";
-      chip.textContent = displayChipValue(field, item);
-      chip.title = item;
-      chip.dataset.value = item;
-      if (isFcmTokenField(field)) {
-        chip.tabIndex = 0;
-        chip.addEventListener("click", () => selectFcmTokenChip(field, chip));
-        chip.addEventListener("keydown", (event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            selectFcmTokenChip(field, chip);
-          }
-        });
-      }
+      chip.textContent = item;
       const remove = document.createElement("button");
       remove.type = "button";
       remove.textContent = "x";
       remove.className = "text-slate-400 hover:text-white";
       remove.addEventListener("click", () => {
-        save(values().filter((value) => value !== item));
+        save(values().filter((v) => v !== item));
         render();
       });
       chip.appendChild(remove);
@@ -87,28 +77,7 @@ function setupChipField(field) {
   render();
 }
 
-function chipSeparator(field) {
-  return isFcmTokenField(field) ? "newline" : "default";
-}
-
-function displayChipValue(field, item) {
-  if (isFcmTokenField(field) && item.length > 5) {
-    return `${item.slice(0, 5)}...`;
-  }
-  return item;
-}
-
-function isFcmTokenField(field) {
-  return field.querySelector('[name="notifications.tokens"]') !== null;
-}
-
-function selectFcmTokenChip(field, chip) {
-  field.querySelectorAll(".chip").forEach((item) => {
-    item.classList.remove("border-blue-400", "bg-blue-950", "ring-2", "ring-blue-500");
-  });
-  chip.classList.add("border-blue-400", "bg-blue-950", "ring-2", "ring-blue-500");
-  field.dataset.selectedToken = chip.dataset.value;
-}
+// ─── Severity checkboxes ───────────────────────────────────────────────────
 
 function setupSeverityChecks() {
   const textarea = document.querySelector(".severity-values");
@@ -121,17 +90,179 @@ function setupSeverityChecks() {
   sync();
 }
 
-function setupExclusiveGroup(selectId, attr) {
-  const select = document.getElementById(selectId);
-  if (!select) return;
-  function sync() {
-    document.querySelectorAll(`[${attr}]`).forEach((group) => {
-      group.classList.toggle("hidden", group.getAttribute(attr) !== select.value);
+// ─── Device tokens (name + token key-pair table) ──────────────────────────
+
+function setupTokenField(field) {
+  const textarea = field.querySelector(".token-values");
+  const list = field.querySelector(".token-list");
+  const nameInput = field.querySelector(".token-name-input");
+  const valueInput = field.querySelector(".token-value-input");
+  const addBtn = field.querySelector(".token-add");
+
+  function load() {
+    try {
+      const parsed = JSON.parse(textarea.value || "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function save(entries) {
+    textarea.value = JSON.stringify(entries);
+  }
+
+  function render() {
+    list.innerHTML = "";
+    const entries = load();
+    if (!entries.length) {
+      list.innerHTML = '<p class="text-xs text-slate-500 italic">No devices added yet.</p>';
+      return;
+    }
+    entries.forEach((entry, index) => {
+      const row = document.createElement("div");
+      row.className = "token-row grid grid-cols-[1fr_2fr_auto] gap-2 items-center rounded-md border border-slate-700 bg-slate-950 px-3 py-2 cursor-pointer";
+      row.dataset.index = index;
+      row.addEventListener("click", () => selectTokenRow(field, row));
+
+      const name = document.createElement("span");
+      name.className = "text-sm text-slate-200 truncate";
+      name.textContent = entry.name || "(unnamed)";
+
+      const token = document.createElement("span");
+      token.className = "text-xs font-mono text-slate-400 truncate";
+      token.textContent = entry.token ? entry.token.slice(0, 12) + "..." : "(empty)";
+      token.title = entry.token || "";
+
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.textContent = "×";
+      removeBtn.className = "text-slate-500 hover:text-white text-lg leading-none";
+      removeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const current = load();
+        current.splice(index, 1);
+        save(current);
+        delete field.dataset.selectedToken;
+        render();
+      });
+
+      row.appendChild(name);
+      row.appendChild(token);
+      row.appendChild(removeBtn);
+      list.appendChild(row);
     });
   }
-  select.addEventListener("change", sync);
-  sync();
+
+  function addEntry() {
+    const name = nameInput.value.trim();
+    const token = valueInput.value.trim();
+    if (!token) return;
+    const entries = load();
+    entries.push({ name, token });
+    save(entries);
+    nameInput.value = "";
+    valueInput.value = "";
+    render();
+  }
+
+  addBtn.addEventListener("click", addEntry);
+  [nameInput, valueInput].forEach((inp) => {
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); addEntry(); }
+    });
+  });
+  render();
 }
+
+function selectTokenRow(field, row) {
+  field.querySelectorAll(".token-row").forEach((r) => {
+    r.classList.remove("border-blue-400", "bg-blue-950", "ring-2", "ring-blue-500");
+  });
+  row.classList.add("border-blue-400", "bg-blue-950", "ring-2", "ring-blue-500");
+  const entries = JSON.parse(field.querySelector(".token-values").value || "[]");
+  const entry = entries[Number(row.dataset.index)];
+  field.dataset.selectedToken = entry ? entry.token : "";
+}
+
+// ─── Key-value button rows (title + URL) ──────────────────────────────────
+
+function setupKvField(field) {
+  const textarea = field.querySelector(".kv-values");
+  const list = field.querySelector(".kv-list");
+  const addBtn = field.querySelector(".kv-add");
+
+  function load() {
+    try {
+      const parsed = JSON.parse(textarea.value || "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function save(entries) {
+    textarea.value = JSON.stringify(entries);
+  }
+
+  function render() {
+    list.innerHTML = "";
+    const entries = load();
+    entries.forEach((entry, index) => {
+      const row = document.createElement("div");
+      row.className = "grid grid-cols-[1fr_2fr_auto] gap-2 items-start";
+
+      const titleInput = document.createElement("input");
+      titleInput.type = "text";
+      titleInput.placeholder = "Button label";
+      titleInput.value = entry.title || "";
+      titleInput.className = "control w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none focus:border-blue-500 text-sm";
+      titleInput.addEventListener("input", () => {
+        const current = load();
+        current[index] = { ...current[index], title: titleInput.value };
+        save(current);
+      });
+
+      const urlInput = document.createElement("input");
+      urlInput.type = "text";
+      urlInput.placeholder = "URL or template, e.g. {{ attachment }}";
+      urlInput.value = entry.url || "";
+      urlInput.className = "control w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none focus:border-blue-500 text-sm font-mono";
+      urlInput.addEventListener("input", () => {
+        const current = load();
+        current[index] = { ...current[index], url: urlInput.value };
+        save(current);
+      });
+
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.textContent = "×";
+      removeBtn.className = "rounded-md border border-slate-700 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 text-lg leading-none";
+      removeBtn.addEventListener("click", () => {
+        const current = load();
+        current.splice(index, 1);
+        save(current);
+        render();
+      });
+
+      row.appendChild(titleInput);
+      row.appendChild(urlInput);
+      row.appendChild(removeBtn);
+      list.appendChild(row);
+    });
+  }
+
+  addBtn.addEventListener("click", () => {
+    const entries = load();
+    entries.push({ title: "", url: "" });
+    save(entries);
+    render();
+  });
+
+  render();
+}
+
+// ─── Tab switching ─────────────────────────────────────────────────────────
 
 function setupTabs() {
   const buttons = [...document.querySelectorAll(".tab-button")];
@@ -147,6 +278,22 @@ function setupTabs() {
     });
   });
 }
+
+// ─── Exclusive show/hide groups (connection type, delivery method) ─────────
+
+function setupExclusiveGroup(selectId, attr) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  function sync() {
+    document.querySelectorAll(`[${attr}]`).forEach((group) => {
+      group.classList.toggle("hidden", group.getAttribute(attr) !== select.value);
+    });
+  }
+  select.addEventListener("change", sync);
+  sync();
+}
+
+// ─── Live logs ─────────────────────────────────────────────────────────────
 
 function renderLogs(logs) {
   const target = document.getElementById("log-list");
@@ -205,30 +352,41 @@ async function refreshLogs() {
   }
 }
 
-async function sendFcmTest(mode) {
-  const field = document.querySelector('[data-chip-kind="fcm-token"]');
-  const status = document.getElementById("fcm-test-status");
-  const tokens = field ? splitValues(field.querySelector(".chip-values").value, "newline") : [];
-  const selectedToken = field?.dataset.selectedToken;
-  const body = mode === "all" ? { all: true, tokens } : { token: selectedToken };
+// ─── FCM test (selected device or all) ────────────────────────────────────
 
-  if ((mode === "all" && tokens.length === 0) || (mode !== "all" && !selectedToken)) {
-    showFcmTestStatus("Select a token first, or use Test all tokens");
+async function sendFcmTest(mode) {
+  const field = document.querySelector(".token-field");
+
+  let entries = [];
+  try {
+    entries = JSON.parse(field?.querySelector(".token-values")?.value || "[]");
+  } catch { /* ignore */ }
+
+  const selectedToken = field?.dataset.selectedToken;
+
+  if (mode === "all" && entries.length === 0) {
+    showFcmTestStatus("No device tokens configured");
+    return;
+  }
+  if (mode !== "all" && !selectedToken) {
+    showFcmTestStatus("Select a device row first, or use Test all devices");
     return;
   }
 
   showFcmTestStatus("Sending test notification...");
   try {
+    const body = mode === "all"
+      ? { all: true, tokens: entries.map((e) => e.token).filter(Boolean) }
+      : { token: selectedToken };
+
     const response = await fetch("/api/test-fcm", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.error || "Test failed");
-    }
-    showFcmTestStatus(`Sent ${result.sent} test notification${result.sent === 1 ? "" : "s"}`);
+    if (!response.ok) throw new Error(result.error || "Test failed");
+    showFcmTestStatus(`Sent ${result.sent ?? 1} test notification${(result.sent ?? 1) === 1 ? "" : "s"}`);
     refreshLogs();
   } catch (error) {
     showFcmTestStatus(error.message || "Test failed");
@@ -242,6 +400,77 @@ function showFcmTestStatus(message) {
   status.classList.remove("hidden");
 }
 
+// ─── Saved test payload (server-side) ────────────────────────────────────
+
+async function saveCurrentPayload() {
+  const input = document.getElementById("test-payload-input");
+  if (!input) return;
+  const raw = input.value.trim();
+  if (!raw) {
+    showTestPayloadStatus("Nothing to save — editor is empty", true);
+    return;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    showTestPayloadStatus(`Cannot save — invalid JSON: ${err.message}`, true);
+    return;
+  }
+  const response = await fetch("/api/saved-payload", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(parsed),
+  });
+  if (response.ok) {
+    showTestPayloadStatus("Payload saved");
+  } else {
+    showTestPayloadStatus("Save failed", true);
+  }
+}
+
+// ─── Test payload tab ──────────────────────────────────────────────────────
+
+const SAMPLE_PAYLOAD = document.getElementById("test-payload-input")?.value || "";
+
+async function sendTestPayload() {
+  const input = document.getElementById("test-payload-input");
+  if (!input) return;
+
+  let payload;
+  try {
+    payload = JSON.parse(input.value);
+  } catch (err) {
+    showTestPayloadStatus(`JSON parse error: ${err.message}`, true);
+    return;
+  }
+
+  showTestPayloadStatus("Sending...");
+  try {
+    const response = await fetch("/api/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Request failed");
+    showTestPayloadStatus("Payload sent — check logs for result");
+    refreshLogs();
+  } catch (err) {
+    showTestPayloadStatus(`Error: ${err.message}`, true);
+  }
+}
+
+function showTestPayloadStatus(message, isError = false) {
+  const el = document.getElementById("test-payload-status");
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove("hidden", "text-red-400", "text-blue-200");
+  el.classList.add(isError ? "text-red-400" : "text-blue-200");
+}
+
+// ─── Log polling ───────────────────────────────────────────────────────────
+
 let logRefreshMs = 3000;
 let logRefreshPaused = false;
 let logRefreshTimer = null;
@@ -253,13 +482,10 @@ function scheduleLogRefresh() {
   }
 }
 
-async function copyText(text, statusMessage) {
-  if (!text.trim()) {
-    showCopyStatus("No logs selected");
-    return;
-  }
+async function copyText(text) {
+  if (!text.trim()) { showCopyStatus("No logs selected"); return; }
   await navigator.clipboard.writeText(text);
-  showCopyStatus(statusMessage);
+  showCopyStatus("Copied");
 }
 
 function showCopyStatus(message) {
@@ -273,27 +499,38 @@ function showCopyStatus(message) {
 function selectedLogText() {
   return [...document.querySelectorAll(".log-select:checked")]
     .map((item) => item.closest(".log-entry")?.dataset.logText || "")
-    .filter(Boolean)
-    .join("\n\n");
+    .filter(Boolean).join("\n\n");
 }
 
 function visibleLogText() {
   return [...document.querySelectorAll(".log-entry")]
     .map((item) => item.dataset.logText || "")
-    .filter(Boolean)
-    .join("\n\n");
+    .filter(Boolean).join("\n\n");
 }
 
+// ─── Init ──────────────────────────────────────────────────────────────────
+
 document.querySelectorAll(".chip-field").forEach(setupChipField);
+document.querySelectorAll(".token-field").forEach(setupTokenField);
+document.querySelectorAll(".kv-field").forEach(setupKvField);
 setupSeverityChecks();
 setupTabs();
 setupExclusiveGroup("connection-type", "data-connection-type");
 setupExclusiveGroup("delivery-method", "data-delivery-method");
+
 document.getElementById("refresh-logs")?.addEventListener("click", refreshLogs);
 document.getElementById("test-selected-fcm-token")?.addEventListener("click", () => sendFcmTest("selected"));
 document.getElementById("test-all-fcm-tokens")?.addEventListener("click", () => sendFcmTest("all"));
-document.getElementById("copy-selected-logs")?.addEventListener("click", () => copyText(selectedLogText(), "Selected logs copied"));
-document.getElementById("copy-visible-logs")?.addEventListener("click", () => copyText(visibleLogText(), "Visible logs copied"));
+document.getElementById("send-test-payload")?.addEventListener("click", sendTestPayload);
+document.getElementById("save-test-payload")?.addEventListener("click", saveCurrentPayload);
+document.getElementById("reset-test-payload")?.addEventListener("click", () => {
+  const input = document.getElementById("test-payload-input");
+  if (input) input.value = SAMPLE_PAYLOAD;
+  const status = document.getElementById("test-payload-status");
+  if (status) status.classList.add("hidden");
+});
+document.getElementById("copy-selected-logs")?.addEventListener("click", () => copyText(selectedLogText()));
+document.getElementById("copy-visible-logs")?.addEventListener("click", () => copyText(visibleLogText()));
 document.getElementById("log-refresh-interval")?.addEventListener("change", (event) => {
   logRefreshMs = Number(event.target.value) || 3000;
   scheduleLogRefresh();

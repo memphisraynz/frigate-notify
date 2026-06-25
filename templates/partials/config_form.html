@@ -1,5 +1,5 @@
 <form method="post" class="space-y-4">
-  <details open class="overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
+  <details class="overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
     <summary class="cursor-pointer px-4 py-3 text-lg font-semibold">Connection</summary>
     <div class="space-y-4 border-t border-slate-800 p-4">
       <label class="field">Enabled <span class="hint">Turns the listener on or off without deleting configuration.</span><select name="enabled" class="control"><option value="true" {{ "selected" if config.enabled }}>Yes</option><option value="false" {{ "selected" if not config.enabled }}>No</option></select></label>
@@ -35,7 +35,7 @@
   </details>
 
   <details class="overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
-    <summary class="cursor-pointer px-4 py-3 text-lg font-semibold">Notification</summary>
+    <summary class="cursor-pointer px-4 py-3 text-lg font-semibold">FCM</summary>
     <div class="space-y-4 border-t border-slate-800 p-4">
       <label class="field">Enable Notifications <span class="hint">If disabled, pushes are skipped and Telegram can still send.</span><select name="notifications.enabled" class="control"><option value="true" {{ "selected" if config.notifications.enabled }}>Yes</option><option value="false" {{ "selected" if not config.notifications.enabled }}>No</option></select></label>
 
@@ -54,13 +54,47 @@
         <label class="field">Relay API URL <span class="hint">The third-party relay endpoint that forwards notification JSON to FCM on your behalf.</span><input name="notifications.fcm_api_url" value="{{ config.notifications.fcm_api_url }}" class="control"></label>
       </div>
 
-      <div class="field chip-field" data-chip-kind="fcm-token"><span>Device Tokens</span><span class="hint">FCM registration tokens from your Android app. Select one chip to test one token, or test every token.</span><textarea class="chip-values sr-only" name="notifications.tokens">{{ config.notifications.tokens|join("\\n") }}</textarea><div class="chip-list"></div><div class="flex gap-2"><input class="chip-input control min-w-0 flex-1" type="text" autocomplete="off"><button class="chip-add btn" type="button">+</button></div><div class="flex flex-wrap gap-2"><button id="test-selected-fcm-token" class="rounded-md border border-slate-700 px-3 py-2 text-sm hover:bg-slate-800" type="button">Test selected token</button><button id="test-all-fcm-tokens" class="rounded-md border border-slate-700 px-3 py-2 text-sm hover:bg-slate-800" type="button">Test all tokens</button></div><p id="fcm-test-status" class="hidden text-sm text-blue-200"></p></div>
+      <!-- Device tokens: named key-pair table -->
+      <div class="field token-field">
+        <span>Device Tokens</span>
+        <span class="hint">FCM registration tokens from your Android app. Give each device a name so you can identify it in logs. Select a row to target that device when testing.</span>
+        <textarea class="token-values sr-only" name="notifications.tokens">{{ config.notifications.tokens | tojson }}</textarea>
+        <div class="token-list mt-2 space-y-2"></div>
+        <div class="mt-2 grid grid-cols-[1fr_2fr_auto] gap-2 items-center">
+          <input class="token-name-input control" type="text" placeholder="Device name" autocomplete="off">
+          <input class="token-value-input control font-mono text-xs" type="text" placeholder="FCM token" autocomplete="off">
+          <button class="token-add btn whitespace-nowrap" type="button">+ Add</button>
+        </div>
+        <div class="mt-2 flex flex-wrap gap-2">
+          <button id="test-selected-fcm-token" class="rounded-md border border-slate-700 px-3 py-2 text-sm hover:bg-slate-800" type="button">Test selected device</button>
+          <button id="test-all-fcm-tokens" class="rounded-md border border-slate-700 px-3 py-2 text-sm hover:bg-slate-800" type="button">Test all devices</button>
+        </div>
+        <p id="fcm-test-status" class="hidden text-sm text-blue-200"></p>
+      </div>
+    </div>
+  </details>
+
+  <details class="overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
+    <summary class="cursor-pointer px-4 py-3 text-lg font-semibold">Notification</summary>
+    <div class="space-y-4 border-t border-slate-800 p-4">
       <label class="field">Title Template <span class="hint">Optional notification title. Leave blank to use the detected objects.</span><input name="notifications.title" value="{{ config.notifications.title }}" class="control"></label>
       <label class="field">Message Template <span class="hint">Available variables include {{ '{{ label }}' }}, {{ '{{ camera_name }}' }}, {{ '{{ after_zones }}' }}, {{ '{{ event_id }}' }}, and {{ '{{ review_id }}' }}.</span><textarea name="notifications.message" class="control min-h-24">{{ config.notifications.message }}</textarea></label>
+      <label class="field">Sub-label Message Template <span class="hint">Used instead of Message when Frigate returns a sub-label (e.g. a recognised person). Leave blank to always use Message. Available variables include {{ '{{ sub_label }}' }}, {{ '{{ sub_labels }}' }}, {{ '{{ camera_name }}' }}, {{ '{{ label }}' }}, and {{ '{{ review_id }}' }}.</span><textarea name="notifications.sub_label_message" class="control min-h-24">{{ config.notifications.sub_label_message }}</textarea></label>
       <label class="field">Subtitle Template <span class="hint">Secondary notification heading sent as subject and subtitle.</span><input name="notifications.subtitle" value="{{ config.notifications.subtitle }}" class="control"></label>
       <label class="field">Initial Attachment <span class="hint">Image or GIF for the first notification.</span><textarea name="notifications.attachment" class="control min-h-20">{{ config.notifications.attachment }}</textarea></label>
       <label class="field">Subsequent Attachment <span class="hint">Image or GIF for updates. Leave blank to keep using the initial attachment.</span><textarea name="notifications.attachment_2" class="control min-h-20">{{ config.notifications.attachment_2 }}</textarea></label>
       <label class="field">Video Template <span class="hint">Optional clip, stream, or GIF URL. Use {{ '{{ clip }}' }} for the direct Frigate event clip.</span><textarea name="notifications.video" class="control min-h-20">{{ config.notifications.video }}</textarea></label>
+
+      <!-- Notification buttons: title + URL rows -->
+      <div class="field kv-field" data-field="notifications.buttons">
+        <span>Notification Buttons</span>
+        <span class="hint">Action buttons shown on the push notification. Up to 3 are sent as individual buttons. Leave a row blank to omit it. URLs support template variables, e.g. {{ '{{ attachment }}' }}, {{ '{{ clip }}' }}, {{ '{{ base_url }}' }}.</span>
+        <textarea class="kv-values sr-only" name="notifications.buttons">{{ config.notifications.buttons | tojson }}</textarea>
+        <div class="kv-list mt-2 space-y-2"></div>
+        <button class="kv-add btn mt-2" type="button">+ Add button</button>
+      </div>
+
+      <label class="field">Click Action <span class="hint">URL or deep-link opened when the notification is tapped. Supports template variables, e.g. <code>frigate://review/{{ '{{ review_id }}' }}</code> or <code>{{ '{{ base_url }}' }}</code>. Leave blank to use the Frigate base URL.</span><input name="notifications.click_action" value="{{ config.notifications.click_action }}" class="control"></label>
       <label class="field">Expanded Thumbnail <span class="hint">Choose whether the client expands notifications with a still photo or GIF preview.</span><select name="notifications.expanded_thumbnail" class="control"><option value="photo" {{ "selected" if config.notifications.expanded_thumbnail == "photo" }}>Photo</option><option value="gif" {{ "selected" if config.notifications.expanded_thumbnail == "gif" }}>GIF</option></select></label>
       <label class="field">Group Template <span class="hint">Notification group key. Include {{ '{{ camera }}' }} to group separately by camera.</span><input name="notifications.group" value="{{ config.notifications.group }}" class="control"></label>
       <label class="field">Color <span class="hint">Android notification color, such as #03a9f4.</span><input name="notifications.color" value="{{ config.notifications.color }}" class="control"></label>
@@ -77,14 +111,14 @@
   <details class="overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
     <summary class="cursor-pointer px-4 py-3 text-lg font-semibold">Filters</summary>
     <div class="space-y-4 border-t border-slate-800 p-4">
-      <div class="field chip-field"><span>Cameras</span><span class="hint">Only notify for these Frigate camera names. Leave empty for all cameras.</span><textarea class="chip-values sr-only" name="filters.cameras">{{ config.filters.cameras|join("\\n") }}</textarea><div class="chip-list"></div><div class="flex gap-2"><input class="chip-input control min-w-0 flex-1" type="text" autocomplete="off"><button class="chip-add btn" type="button">+</button></div></div>
-      <div class="field"><span>Severities</span><span class="hint">Allowed review severities.</span><textarea class="severity-values sr-only" name="filters.review_severity">{{ config.filters.review_severity|join("\\n") }}</textarea><div class="flex flex-wrap gap-2"><label class="check-card"><input class="severity-check" type="checkbox" value="alert" {{ "checked" if "alert" in config.filters.review_severity }}> Alert</label><label class="check-card"><input class="severity-check" type="checkbox" value="detection" {{ "checked" if "detection" in config.filters.review_severity }}> Detection</label></div></div>
-      <div class="field chip-field"><span>Labels / Objects</span><span class="hint">Only notify when the review label, sub-label, object, or attribute matches.</span><textarea class="chip-values sr-only" name="filters.labels">{{ config.filters.labels|join("\\n") }}</textarea><div class="chip-list"></div><div class="flex gap-2"><input class="chip-input control min-w-0 flex-1" type="text" autocomplete="off"><button class="chip-add btn" type="button">+</button></div></div>
+      <div class="field chip-field"><span>Cameras</span><span class="hint">Only notify for these Frigate camera names. Leave empty for all cameras.</span><textarea class="chip-values sr-only" name="filters.cameras">{{ config.filters.cameras|join("\n") }}</textarea><div class="chip-list"></div><div class="flex gap-2"><input class="chip-input control min-w-0 flex-1" type="text" autocomplete="off"><button class="chip-add btn" type="button">+</button></div></div>
+      <div class="field"><span>Severities</span><span class="hint">Allowed review severities.</span><textarea class="severity-values sr-only" name="filters.review_severity">{{ config.filters.review_severity|join("\n") }}</textarea><div class="flex flex-wrap gap-2"><label class="check-card"><input class="severity-check" type="checkbox" value="alert" {{ "checked" if "alert" in config.filters.review_severity }}> Alert</label><label class="check-card"><input class="severity-check" type="checkbox" value="detection" {{ "checked" if "detection" in config.filters.review_severity }}> Detection</label></div></div>
+      <div class="field chip-field"><span>Labels / Objects</span><span class="hint">Only notify when the review label, sub-label, object, or attribute matches.</span><textarea class="chip-values sr-only" name="filters.labels">{{ config.filters.labels|join("\n") }}</textarea><div class="chip-list"></div><div class="flex gap-2"><input class="chip-input control min-w-0 flex-1" type="text" autocomplete="off"><button class="chip-add btn" type="button">+</button></div></div>
       <label class="field">Zone Filter <span class="hint">Require at least one matching Frigate zone before sending.</span><select name="filters.zones_enabled" class="control"><option value="true" {{ "selected" if config.filters.zones_enabled }}>Yes</option><option value="false" {{ "selected" if not config.filters.zones_enabled }}>No</option></select></label>
-      <div class="field chip-field"><span>Zones</span><span class="hint">Zone names from Frigate, lowercase and underscore-formatted as in your config.</span><textarea class="chip-values sr-only" name="filters.zones">{{ config.filters.zones|join("\\n") }}</textarea><div class="chip-list"></div><div class="flex gap-2"><input class="chip-input control min-w-0 flex-1" type="text" autocomplete="off"><button class="chip-add btn" type="button">+</button></div></div>
+      <div class="field chip-field"><span>Zones</span><span class="hint">Zone names from Frigate, lowercase and underscore-formatted as in your config.</span><textarea class="chip-values sr-only" name="filters.zones">{{ config.filters.zones|join("\n") }}</textarea><div class="chip-list"></div><div class="flex gap-2"><input class="chip-input control min-w-0 flex-1" type="text" autocomplete="off"><button class="chip-add btn" type="button">+</button></div></div>
       <label class="field">Require All Zones <span class="hint">Require every configured zone instead of any configured zone.</span><select name="filters.zone_multi" class="control"><option value="true" {{ "selected" if config.filters.zone_multi }}>Yes</option><option value="false" {{ "selected" if not config.filters.zone_multi }}>No</option></select></label>
       <label class="field">Enforce Zone Order <span class="hint">When all zones are required, only pass if zones are entered in configured order.</span><select name="filters.zone_order_enforced" class="control"><option value="true" {{ "selected" if config.filters.zone_order_enforced }}>Yes</option><option value="false" {{ "selected" if not config.filters.zone_order_enforced }}>No</option></select></label>
-      <div class="field chip-field"><span>Disabled Hours 0-23</span><span class="hint">Hours when notifications are disabled. Uses the server local time.</span><textarea class="chip-values sr-only" name="filters.disable_hours">{{ config.filters.disable_hours|join("\\n") }}</textarea><div class="chip-list"></div><div class="flex gap-2"><input class="chip-input control min-w-0 flex-1" type="number" min="0" max="23"><button class="chip-add btn" type="button">+</button></div></div>
+      <div class="field chip-field"><span>Disabled Hours 0-23</span><span class="hint">Hours when notifications are disabled. Uses the server local time.</span><textarea class="chip-values sr-only" name="filters.disable_hours">{{ config.filters.disable_hours|join("\n") }}</textarea><div class="chip-list"></div><div class="flex gap-2"><input class="chip-input control min-w-0 flex-1" type="number" min="0" max="23"><button class="chip-add btn" type="button">+</button></div></div>
       <label class="field">Custom Filter Template <span class="hint">Advanced Jinja expression that renders true or false.</span><textarea name="filters.custom_filter" class="control min-h-24">{{ config.filters.custom_filter }}</textarea></label>
     </div>
   </details>
@@ -92,7 +126,7 @@
   <details class="overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
     <summary class="cursor-pointer px-4 py-3 text-lg font-semibold">Timers</summary>
     <div class="space-y-4 border-t border-slate-800 p-4">
-      <label class="field">Cooldown Seconds <span class="hint">Minimum time between notification starts.</span><input name="timers.cooldown" value="{{ config.timers.cooldown }}" class="control"></label>
+      <label class="field">Cooldown Seconds <span class="hint">Minimum time between notification starts per camera.</span><input name="timers.cooldown" value="{{ config.timers.cooldown }}" class="control"></label>
       <label class="field">Timeout Minutes <span class="hint">Reserved for Home Assistant blueprint parity.</span><input name="timers.timeout" value="{{ config.timers.timeout }}" class="control"></label>
       <label class="field">Silence Timer Minutes <span class="hint">Reserved for temporary notification silence parity.</span><input name="timers.silence_timer" value="{{ config.timers.silence_timer }}" class="control"></label>
       <label class="field">Loiter Timer Minutes <span class="hint">Reserved for stationary object loitering parity.</span><input name="timers.loiter_timer" value="{{ config.timers.loiter_timer }}" class="control"></label>
