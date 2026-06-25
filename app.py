@@ -21,14 +21,14 @@ from jinja2 import Environment
 from paho.mqtt import client as mqtt
 
 
-CONFIG_PATH = Path(os.environ.get("FRIGATE_AUTOMATION_CONFIG", "/data/config.json"))
+CONFIG_PATH = Path(os.environ.get("FRIGATE_NOTIFY_CONFIG", "/data/config.json"))
 SAVED_PAYLOADS_PATH = CONFIG_PATH.parent / "saved_payloads.json"
 LOG_DIR = CONFIG_PATH.parent / "logs"
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin")
 LIVE_LOGS: deque[dict[str, Any]] = deque(maxlen=500)
 
 FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
-THIRD_PARTY_RELAY_URL = "https://ayra.eu.org/project/frigate/fcm"
+THIRD_PARTY_RELAY_URL = ""
 
 SAMPLE_REVIEW_EVENT: dict[str, Any] = {
     "type": "new",
@@ -82,7 +82,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "username": "",
         "password": "",
         "topic": "frigate/reviews",
-        "client_id": "frigate-native-automation",
+        "client_id": "frigate-notify",
     },
     "websocket": {
         "base_url": "ws://frigate:5000",
@@ -502,21 +502,29 @@ def send_fcm_v1(service_account_json: str, token: str, payload: dict[str, str]) 
         "message": {
             "token": token,
             "data": {
+                # Primary Content
                 "title": payload.get("title"),
                 "message": payload.get("message"),
                 "image": payload.get("image") or payload.get("thumbnail"),
+                
+                # Notification Click Action
                 "url": payload.get("url") or payload.get("click_action"),
-                "click_action": payload.get("click_action"),
+
+                # Action Buttons
                 "button_1": payload.get("button_1"),
                 "url_1": payload.get("url_1"),
                 "button_2": payload.get("button_2"),
                 "url_2": payload.get("url_2"),
                 "button_3": payload.get("button_3"),
                 "url_3": payload.get("url_3"),
+
+                # Metadata
+                "group": payload.get("group"),
                 "tag": payload.get("tag"),
                 "event_id": payload.get("event_id"),
                 "camera": payload.get("camera"),
                 "review_id": payload.get("review_id"),
+                "alert_once": payload.get("alert_once")
             },
             "android": {
                 "priority": "high",
@@ -600,7 +608,7 @@ class AutomationWorker:
                 return
             self.running = True
         add_log("info", "Worker starting")
-        threading.Thread(target=self._run, daemon=True, name="frigate-automation-listener").start()
+        threading.Thread(target=self._run, daemon=True, name="frigate-notify-listener").start()
 
     def stop(self) -> None:
         with self.lock:
